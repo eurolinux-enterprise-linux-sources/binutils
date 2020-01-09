@@ -1,0 +1,12 @@
+diff -rup binutils.orig/bfd/elf32-i386.c binutils-2.20.51.0.2/bfd/elf32-i386.c
+--- binutils.orig/bfd/elf32-i386.c	2017-02-28 17:00:19.020051960 +0000
++++ binutils-2.20.51.0.2/bfd/elf32-i386.c	2017-02-28 17:01:36.969035765 +0000
+@@ -3978,7 +3978,7 @@ elf_i386_relocate_section (bfd *output_b
+ 	  break;
+ 
+ 	case R_386_TLS_LDO_32:
+-	  if (info->shared || (input_section->flags & SEC_CODE) == 0)
++	  if (!info->executable || (input_section->flags & SEC_CODE) == 0)
+ 	    relocation -= elf_i386_dtpoff_base (info);
+ 	  else
+ 	    /* When converting LDO to LE, we must negate.  */

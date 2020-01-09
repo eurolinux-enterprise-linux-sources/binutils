@@ -17,7 +17,7 @@
 Summary: A GNU collection of binary utilities
 Name: %{?cross}binutils%{?_with_debug:-debug}
 Version: 2.20.51.0.2
-Release: 5.46%{?dist}
+Release: 5.47%{?dist}.1
 License: GPLv3+
 Group: Development/Tools
 URL: http://sources.redhat.com/binutils
@@ -85,6 +85,7 @@ Patch59: binutils-rh1175590.patch
 Patch60: binutils-rh1227839.patch
 Patch61: binutils-rh1311494.patch
 Patch62: binutils-rh1409817.patch
+Patch63: binutils-rh1427285.patch
 
 %if 0%{?_with_debug:1}
 # Define this if you want to skip the strip step and preserve debug info.
@@ -211,6 +212,7 @@ to consider using libelf instead of BFD.
 %patch60 -p1
 %patch61 -p0
 %patch62 -p1
+%patch63 -p1
 
 # We cannot run autotools as there is an exact requirement of autoconf-2.59.
 
@@ -480,6 +482,13 @@ exit 0
 %endif # %{isnative}
 
 %changelog
+* Fri Mar 27 2017 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.47_el6_9.1
+- Update Release string to indicate a z-stream fix.
+  (#1433075)
+
+* Tue Feb 28 2017 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.47
+- Fix seg-fault in x86 PIE binaries. (#1427285)
+
 * Thu Jan 05 2017 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.46
 - Fix seg-fault in readelf reading corrupt binary. (#1409817)
 
