@@ -54,7 +54,7 @@ Version: 2.27
 # Note: The Release string *must* be different from that used by any of the
 # devtoolset binutils associated with this release.  That is why ".base"
 # has been appended here.  See BZ 1337617 for more details.
-Release: 34.base%{?dist}
+Release: 41.base%{?dist}
 License: GPLv3+
 Group: Development/Tools
 URL: http://sources.redhat.com/binutils
@@ -341,6 +341,27 @@ Patch54: binutils-CVE-2018-7643.patch
 # Lifetime: Fixed in 2.31
 Patch55: binutils-CVE-2018-8945.patch
 
+# Purpose:  Stop strip from crashing whilst removing .comment sections.
+# Lifetime: Fixed in 2.31
+Patch56: binutils-strip-fix.patch
+
+# Purpose:  Prevent resource exhaustion attacks on the libiberty name
+#            demangling code.
+# Lifetime: Fixed in 2.32
+Patch57: binutils-libiberty-demangler.patch
+
+# Purpose:  Add the .attach-to-group pseudo-op to the assembler.
+# Lifetime: Permanent.
+Patch58: binutils-attach-to-group.patch
+
+# Purpose:  Stop the x86_64 linker from optimizing PLT entries.
+# Lifetime: Permanent.
+Patch59: binutils-x86_64-disable-PLT-elision.patch
+
+# Purpose:  Fix a possible memory corruption due to an integer overflow
+#           when running the binutils as 32-bit binaries.
+# Lifetime: Fixed in 2.32
+Patch60: binutils-CVE-2018-1000876.patch
 
 
 # Purpose:  A *temporary* patch to disable the generation of
@@ -365,7 +386,7 @@ Patch999: binutils-SUPPRESS-PPC-TLBIE-CHECK.patch
 
 Provides: bundled(libiberty)
 
-%define gold_arches %ix86 x86_64 %arm aarch64
+%define gold_arches %ix86 x86_64 %arm aarch64 %{power64} s390x
 
 %if %{with bootstrap}
 %define build_gold      no
@@ -536,6 +557,11 @@ using libelf instead of BFD.
 %patch53 -p1
 %patch54 -p1
 %patch55 -p1
+%patch56 -p1
+%patch57 -p1
+%patch58 -p1
+%patch59 -p1
+%patch60 -p1
 
 # TEMPORARY patches.
 %patch998 -p1
@@ -600,8 +626,13 @@ case %{binutils_target} in ppc*|ppc64*)
   ;;
 esac
 
+case %{binutils_target} in ppc64-*)
+  CARGS="$CARGS --enable-targets=powerpc64le-linux"
+  ;;
+esac
+
 case %{binutils_target} in ppc64le*)
-  CARGS="$CARGS --enable-targets=spu,powerpc-linux"
+  CARGS="$CARGS --enable-targets=powerpc-linux"
   ;;
 esac
 
@@ -942,6 +973,27 @@ exit 0
 
 #---------------------------------------------------------------------------------
 %changelog
+* Mon Apr 15 2019 Nick Clifton  <nickc@redhat.com> 2.27-41.base
+- Fix up some linker tests that fail because of the R_x86_64_GOTPCRELX patch.  (#1699745)
+
+* Mon Jan 28 2019 Nick Clifton  <nickc@redhat.com> 2.27-40.base
+- Enable gold for PowerPC and s390x.  (#1670014)
+
+* Mon Jan 14 2019 Nick Clifton  <nickc@redhat.com> 2.27-39.base
+- Fix a potential illegal memory access triggered by an integer overflow.  (#1665884)
+
+* Tue Jan 08 2019 Nick Clifton  <nickc@redhat.com> 2.27-38.base
+- Disable optimizations of x06_64 PLT entries.  (#1624779)
+
+* Tue Jan 08 2019 Nick Clifton  <nickc@redhat.com> 2.27-37.base
+- Add the .attach-to-group pseudo-op to the assembler.  (#1652587)
+
+* Tue Jan 08 2019 Nick Clifton  <nickc@redhat.com> 2.27-36.base
+- Prevent resource exhaustion attacks on libiberty's name demangling code.  (#1598561)
+
+* Tue Jan 08 2019 Nick Clifton  <nickc@redhat.com> 2.27-35.base
+- Stop strip crashing when removing .comment sections.  (#1644632)
+
 * Wed May 30 2018 Nick Clifton  <nickc@redhat.com> 2.27-34.base
 - Fix seg-fault parsing corrupt AOUT format files.  (#1579799)
 - Fix seg-fault parsing corrupt DWARF2 debug information.  (#1579802)

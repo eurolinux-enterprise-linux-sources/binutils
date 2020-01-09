@@ -1,0 +1,257 @@
+diff -rup binutils.orig/include/demangle.h binutils-2.27/include/demangle.h
+--- binutils.orig/include/demangle.h	2019-01-08 13:52:32.990714670 +0000
++++ binutils-2.27/include/demangle.h	2019-01-08 13:58:42.269743403 +0000
+@@ -64,9 +64,20 @@ extern "C" {
+ #define DMGL_GNAT	 (1 << 15)
+ #define DMGL_DLANG	 (1 << 16)
+ 
++/* Disable a limit on the depth of recursion in mangled strings.
++   Note if this limit is disabled then stack exhaustion is possible when
++   demangling pathologically complicated strings.  Bug reports about stack
++   exhaustion when the option is enabled will be rejected.  */  
++#define DMGL_NO_RECURSE_LIMIT (1 << 17)	
++
+ /* If none of these are set, use 'current_demangling_style' as the default. */
+ #define DMGL_STYLE_MASK (DMGL_AUTO|DMGL_GNU|DMGL_LUCID|DMGL_ARM|DMGL_HP|DMGL_EDG|DMGL_GNU_V3|DMGL_JAVA|DMGL_GNAT|DMGL_DLANG)
+ 
++/* If DMGL_NO_RECURSE_LIMIT is not enabled, then this is the value used as
++   the maximum depth of recursion allowed.  It should be enough for any
++   real-world mangled name.  */
++#define DEMANGLE_RECURSION_LIMIT 2048
++  
+ /* Enumeration of possible demangling styles.
+ 
+    Lucid and ARM styles are still kept logically distinct, even though
+Only in binutils-2.27/include: demangle.h.orig
+Only in binutils-2.27/include: #demangle.h.rej#
+Only in binutils-2.27/include: .#demangle.h.rej
+Only in binutils-2.27/include: demangle.h.rej
+diff -rup binutils.orig/libiberty/cp-demangle.c binutils-2.27/libiberty/cp-demangle.c
+--- binutils.orig/libiberty/cp-demangle.c	2019-01-08 13:52:33.161713294 +0000
++++ binutils-2.27/libiberty/cp-demangle.c	2019-01-08 13:53:30.002255949 +0000
+@@ -2725,21 +2725,35 @@ d_ref_qualifier (struct d_info *di, stru
+ static struct demangle_component *
+ d_function_type (struct d_info *di)
+ {
+-  struct demangle_component *ret;
++  struct demangle_component *ret = NULL;
+ 
+-  if (! d_check_char (di, 'F'))
+-    return NULL;
+-  if (d_peek_char (di) == 'Y')
++  if ((di->options & DMGL_NO_RECURSE_LIMIT) == 0)
+     {
+-      /* Function has C linkage.  We don't print this information.
+-	 FIXME: We should print it in verbose mode.  */
+-      d_advance (di, 1);
++      if (di->recursion_level > DEMANGLE_RECURSION_LIMIT)
++	/* FIXME: There ought to be a way to report
++	   that the recursion limit has been reached.  */
++	return NULL;
++
++      di->recursion_level ++;
+     }
+-  ret = d_bare_function_type (di, 1);
+-  ret = d_ref_qualifier (di, ret);
+ 
+-  if (! d_check_char (di, 'E'))
+-    return NULL;
++  if (d_check_char (di, 'F'))
++    {
++      if (d_peek_char (di) == 'Y')
++	{
++	  /* Function has C linkage.  We don't print this information.
++	     FIXME: We should print it in verbose mode.  */
++	  d_advance (di, 1);
++	}
++      ret = d_bare_function_type (di, 1);
++      ret = d_ref_qualifier (di, ret);
++      
++      if (! d_check_char (di, 'E'))
++	ret = NULL;
++    }
++
++  if ((di->options & DMGL_NO_RECURSE_LIMIT) == 0)
++    di->recursion_level --;
+   return ret;
+ }
+ 
+@@ -5898,6 +5912,7 @@ cplus_demangle_init_info (const char *ma
+   di->expansion = 0;
+   di->is_expression = 0;
+   di->is_conversion = 0;
++  di->recursion_level = 0;
+ }
+ 
+ /* Internal implementation for the demangler.  If MANGLED is a g++ v3 ABI
+@@ -5937,6 +5952,20 @@ d_demangle_callback (const char *mangled
+ 
+   cplus_demangle_init_info (mangled, options, strlen (mangled), &di);
+ 
++  /* PR 87675 - Check for a mangled string that is so long
++     that we do not have enough stack space to demangle it.  */
++  if (((options & DMGL_NO_RECURSE_LIMIT) == 0)
++      /* This check is a bit arbitrary, since what we really want to do is to
++	 compare the sizes of the di.comps and di.subs arrays against the
++	 amount of stack space remaining.  But there is no portable way to do
++	 this, so instead we use the recursion limit as a guide to the maximum
++	 size of the arrays.  */
++      && (unsigned long) di.num_comps > DEMANGLE_RECURSION_LIMIT)
++    {
++      /* FIXME: We need a way to indicate that a stack limit has been reached.  */
++      return 0;
++    }
++
+   {
+ #ifdef CP_DYNAMIC_ARRAYS
+     __extension__ struct demangle_component comps[di.num_comps];
+Only in binutils-2.27/libiberty: cp-demangle.c.orig
+diff -rup binutils.orig/libiberty/cp-demangle.h binutils-2.27/libiberty/cp-demangle.h
+--- binutils.orig/libiberty/cp-demangle.h	2019-01-08 13:52:33.161713294 +0000
++++ binutils-2.27/libiberty/cp-demangle.h	2019-01-08 13:53:30.003255941 +0000
+@@ -127,6 +127,9 @@ struct d_info
+   /* Non-zero if we are parsing the type operand of a conversion
+      operator, but not when in an expression.  */
+   int is_conversion;
++  /* If DMGL_NO_RECURSE_LIMIT is not active then this is set to
++     the current recursion level.  */
++  unsigned int recursion_level;
+ };
+ 
+ /* To avoid running past the ending '\0', don't:
+Only in binutils-2.27/libiberty: cp-demangle.h.orig
+diff -rup binutils.orig/libiberty/cplus-dem.c binutils-2.27/libiberty/cplus-dem.c
+--- binutils.orig/libiberty/cplus-dem.c	2019-01-08 13:52:33.161713294 +0000
++++ binutils-2.27/libiberty/cplus-dem.c	2019-01-08 14:10:00.057340821 +0000
+@@ -137,6 +137,7 @@ struct work_stuff
+   string* previous_argument; /* The last function argument demangled.  */
+   int nrepeats;         /* The number of times to repeat the previous
+ 			   argument.  */
++  unsigned int recursion_level;
+ };
+ 
+ #define PRINT_ANSI_QUALIFIERS (work -> options & DMGL_ANSI)
+@@ -1237,11 +1238,15 @@ squangle_mop_up (struct work_stuff *work
+     {
+       free ((char *) work -> btypevec);
+       work->btypevec = NULL;
++      work->bsize = 0;
++      work->numb = 0;
+     }
+   if (work -> ktypevec != NULL)
+     {
+       free ((char *) work -> ktypevec);
+       work->ktypevec = NULL;
++      work->ksize = 0;
++      work->numk = 0;
+     }
+ }
+ 
+@@ -1275,8 +1280,15 @@ work_stuff_copy_to_from (struct work_stu
+ 
+   for (i = 0; i < from->numk; i++)
+     {
+-      int len = strlen (from->ktypevec[i]) + 1;
++      int len;
+ 
++      if (from->ktypevec[i] == NULL)
++	{
++	  to->ktypevec[i] = NULL;
++	  continue;
++	}
++
++      len = strlen (from->ktypevec[i]) + 1;
+       to->ktypevec[i] = XNEWVEC (char, len);
+       memcpy (to->ktypevec[i], from->ktypevec[i], len);
+     }
+@@ -1286,8 +1298,15 @@ work_stuff_copy_to_from (struct work_stu
+ 
+   for (i = 0; i < from->numb; i++)
+     {
+-      int len = strlen (from->btypevec[i]) + 1;
++      int len;
+ 
++      if (from->btypevec[i] == NULL)
++	{
++	  to->btypevec[i] = NULL;
++	  continue;
++	}
++
++      len = strlen (from->btypevec[i]) + 1;
+       to->btypevec[i] = XNEWVEC (char , len);
+       memcpy (to->btypevec[i], from->btypevec[i], len);
+     }
+@@ -1335,6 +1354,7 @@ delete_non_B_K_work_stuff (struct work_s
+ 
+       free ((char*) work->tmpl_argvec);
+       work->tmpl_argvec = NULL;
++      work->ntmpl_args = 0;
+     }
+   if (work->previous_argument)
+     {
+@@ -3347,6 +3367,20 @@ demangle_qualified (struct work_stuff *w
+       success = 0;
+     }
+ 
++  if ((work->options & DMGL_NO_RECURSE_LIMIT) == 0)
++    {
++      /* PR 87241: Catch malicious input that will try to trick this code into
++	 allocating a ridiculous amount of memory via the remember_Ktype()
++	 function.
++	 The choice of DEMANGLE_RECURSION_LIMIT is somewhat arbitrary.  Possibly
++	 a better solution would be to track how much memory remember_Ktype
++	 allocates and abort when some upper limit is reached.  */
++      if (qualifiers > DEMANGLE_RECURSION_LIMIT)
++	/* FIXME: We ought to have some way to tell the user that
++	   this limit has been reached.  */
++	success = 0;
++    }
++
+   if (!success)
+     return success;
+ 
+@@ -4335,6 +4369,7 @@ remember_Btype (struct work_stuff *work,
+ }
+ 
+ /* Lose all the info related to B and K type codes. */
++
+ static void
+ forget_B_and_K_types (struct work_stuff *work)
+ {
+@@ -4360,6 +4395,7 @@ forget_B_and_K_types (struct work_stuff
+ 	}
+     }
+ }
++
+ /* Forget the remembered types, but not the type vector itself.  */
+ 
+ static void
+@@ -4551,6 +4587,16 @@ demangle_nested_args (struct work_stuff
+   int result;
+   int saved_nrepeats;
+ 
++  if ((work->options & DMGL_NO_RECURSE_LIMIT) == 0)
++    {
++      if (work->recursion_level > DEMANGLE_RECURSION_LIMIT)
++	/* FIXME: There ought to be a way to report
++	   that the recursion limit has been reached.  */
++	return 0;
++
++      work->recursion_level ++;
++    }
++
+   /* The G++ name-mangling algorithm does not remember types on nested
+      argument lists, unless -fsquangling is used, and in that case the
+      type vector updated by remember_type is not used.  So, we turn
+@@ -4577,6 +4623,9 @@ demangle_nested_args (struct work_stuff
+   --work->forgetting_types;
+   work->nrepeats = saved_nrepeats;
+ 
++  if ((work->options & DMGL_NO_RECURSE_LIMIT) == 0)
++    --work->recursion_level;
++
+   return result;
+ }
+ 
+Only in binutils-2.27/libiberty: cplus-dem.c.orig
+Only in binutils-2.27/libiberty: cplus-dem.c.rej

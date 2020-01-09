@@ -1,0 +1,20 @@
+diff -rup binutils.orig/bfd/elf64-x86-64.c binutils-2.27/bfd/elf64-x86-64.c
+--- binutils.orig/bfd/elf64-x86-64.c	2019-01-08 15:54:01.806611101 +0000
++++ binutils-2.27/bfd/elf64-x86-64.c	2019-01-08 15:55:30.790890607 +0000
+@@ -3032,7 +3032,7 @@ elf_x86_64_allocate_dynrelocs (struct el
+   resolved_to_zero = UNDEFINED_WEAK_RESOLVED_TO_ZERO (info,
+ 						      eh->has_got_reloc,
+ 						      eh);
+-
++#if 0
+   /* We can't use the GOT PLT if pointer equality is needed since
+      finish_dynamic_symbol won't clear symbol value and the dynamic
+      linker won't update the GOT slot.  We will get into an infinite
+@@ -3050,6 +3050,7 @@ elf_x86_64_allocate_dynrelocs (struct el
+       /* Use the GOT PLT.  */
+       eh->plt_got.refcount = 1;
+     }
++#endif
+ 
+   /* Clear the reference count of function pointer relocations if
+      symbol isn't a normal function.  */
