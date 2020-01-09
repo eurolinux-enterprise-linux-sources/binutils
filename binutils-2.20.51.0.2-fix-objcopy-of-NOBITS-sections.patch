@@ -1,0 +1,41 @@
+--- binutils.orig/bfd/elf.c	2017-07-31 11:19:09.962931070 +0100
++++ binutils-2.20.51.0.2/bfd/elf.c	2017-07-31 12:08:08.476409382 +0100
+@@ -4252,6 +4252,22 @@ print_segment_map (const struct elf_segm
+   putc ('\n',stderr);
+ }
+ 
++static bfd_boolean
++write_zeros (bfd *abfd, file_ptr pos, bfd_size_type len)
++{
++  void *buf;
++  bfd_boolean ret;
++
++  if (bfd_seek (abfd, pos, SEEK_SET) != 0)
++    return FALSE;
++  buf = bfd_zmalloc (len);
++  if (buf == NULL)
++    return FALSE;
++  ret = bfd_bwrite (buf, len, abfd) == len;
++  free (buf);
++  return ret;
++}
++
+ /* Assign file positions to the sections based on the mapping from
+    sections to segments.  This function also sets up some fields in
+    the file header.  */
+@@ -4587,6 +4603,15 @@ assign_file_positions_for_load_sections
+ 
+ 	      if (this_hdr->sh_type != SHT_NOBITS)
+ 		{
++		  if (p->p_filesz + adjust < p->p_memsz)
++		    {
++		      /* We have a PROGBITS section following NOBITS ones.
++		         Allocate file space for the NOBITS section(s) and
++			 zero it.  */
++		      adjust = p->p_memsz - p->p_filesz;
++		      if (!write_zeros (abfd, off, adjust))
++			return FALSE;
++		    }
+ 		  off += adjust;
+ 		  p->p_filesz += adjust;
+ 		}
