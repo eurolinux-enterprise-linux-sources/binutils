@@ -1,0 +1,1244 @@
+bfd/
+
+2009-08-22  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR gas/10531
+	* section.c: Include "elf-bfd.h".
+	(bfd_get_section_by_name): Don't use a section in a section
+	group.
+	(bfd_make_section_old_way): Likewise.
+
+binutils/testsuite/
+
+2009-08-22  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR gas/10531
+	* binutils-all/objdump.W: Remove bogus line debug info.
+
+gas/
+
+2009-08-22  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR gas/10531
+	* as.c (gen_debug): New.
+	(parse_args): Set gen_debug to debug_type.
+
+	* as.h (gen_debug): New.
+
+	* dwarf2dbg.c (dwarf2_directive_used): New.
+	(dwarf2_directive_file): Set dwarf2_directive_used.
+	(dwarf2_directive_loc): Likewise.
+	(dwarf2_directive_used): Likewise.
+	(dwarf2_finish): Return if -g isn't passed nor any .file/.loc
+	directive is used.
+
+	* subsegs.c (subseg_get): Don't compare segment name.
+
+gas/testsuite/
+
+2009-08-22  H.J. Lu  <hongjiu.lu@intel.com>
+
+	 PR gas/10531
+	 * gas/elf/dwarf2-1.d: New.
+	 * gas/elf/dwarf2-1.s: Likewise.
+	 * gas/elf/dwarf2-2.d: Likewise.
+	 * gas/elf/dwarf2-2.s: Likewise.
+	 * gas/elf/dwarf2-3.d: Likewise.
+	 * gas/elf/dwarf2-3.s: Likewise.
+	 * gas/i386/debug1.d: Likewise.
+	 * gas/i386/debug1.s: Likewise.
+
+	* gas/elf/elf.exp: Run dwarf2-1, dwarf2-2 and dwarf2-3.
+
+	* gas/i386/i386.exp: Run debug1 for both 32bit and 64bit.
+
+--- binutils/bfd/section.c.group	2009-09-10 10:16:27.000000000 -0700
++++ binutils/bfd/section.c	2009-09-29 08:48:51.000000000 -0700
+@@ -138,6 +138,7 @@ SUBSECTION
+ #include "bfd.h"
+ #include "libbfd.h"
+ #include "bfdlink.h"
++#include "elf-bfd.h"
+ 
+ /*
+ DOCDD
+@@ -854,11 +855,31 @@ asection *
+ bfd_get_section_by_name (bfd *abfd, const char *name)
+ {
+   struct section_hash_entry *sh;
++  unsigned long hash;
++  asection *sec;
+ 
+   sh = section_hash_lookup (&abfd->section_htab, name, FALSE, FALSE);
+-  if (sh != NULL)
++  if (sh == NULL)
++    return NULL;
++
++  /* Only ELF has section group. */
++  if (bfd_get_flavour (abfd) != bfd_target_elf_flavour)
+     return &sh->section;
+ 
++  hash = sh->root.hash;
++  do
++    {
++      sec = &sh->section;
++      /* Don't return a section in a section group.  */
++      if (elf_section_data (sec) == NULL
++	  || elf_group_name (sec) == NULL)
++	return sec;
++      sh = (struct section_hash_entry *) sh->root.next;
++    }
++  while (sh != NULL
++	 && sh->root.hash == hash
++	 && strcmp (sh->root.string, name) == 0);
++
+   return NULL;
+ }
+ 
+@@ -1011,7 +1032,43 @@ bfd_make_section_old_way (bfd *abfd, con
+       if (sh == NULL)
+ 	return NULL;
+ 
+-      newsect = &sh->section;
++      /* Only ELF has section group. */
++      if (bfd_get_flavour (abfd) == bfd_target_elf_flavour)
++	{
++	  struct section_hash_entry *old_sh = sh;
++	  unsigned long hash = sh->root.hash;
++
++	  do
++	    {
++	      newsect = &sh->section;
++	      /* Don't use a section in a section group.  */
++	      if (elf_section_data (newsect) == NULL
++		  || elf_group_name (newsect) == NULL)
++		break;
++	      sh = (struct section_hash_entry *) sh->root.next;
++	    }
++	  while (sh != NULL
++		 && sh->root.hash == hash
++		 && strcmp (sh->root.string, name) == 0);
++
++	  if (sh == NULL)
++	    {
++	      /* Allocate a new one since existing sections are in
++		 section groups.  */
++	      struct section_hash_entry *new_sh;
++	      new_sh = (struct section_hash_entry *)
++		bfd_section_hash_newfunc (NULL, &abfd->section_htab, name);
++	      if (new_sh == NULL)
++		return NULL;
++
++	      new_sh->root = old_sh->root;
++	      old_sh->root.next = &new_sh->root;
++	      newsect = &new_sh->section;
++	    }
++	}
++      else
++	newsect = &sh->section;
++
+       if (newsect->name != NULL)
+ 	{
+ 	  /* Section already exists.  */
+--- binutils/binutils/testsuite/binutils-all/objdump.W.group	2009-05-05 10:56:19.000000000 -0700
++++ binutils/binutils/testsuite/binutils-all/objdump.W	2009-09-29 08:48:51.000000000 -0700
+@@ -73,36 +73,6 @@ Raw dump of debug contents of section .d
+   Extended opcode 1: End of Sequence
+ 
+ 
+-  Offset:                      0x42
+-  Length:                      25
+-  DWARF Version:               2
+-  Prologue Length:             19
+-  Minimum Instruction Length:  [1248]
+-  Initial value of 'is_stmt':  1
+-  Line Base:                   -5
+-  Line Range:                  14
+-  Opcode Base:                 13
+-
+- Opcodes:
+-  Opcode 1 has 0 args
+-  Opcode 2 has 1 args
+-  Opcode 3 has 1 args
+-  Opcode 4 has 1 args
+-  Opcode 5 has 1 args
+-  Opcode 6 has 0 args
+-  Opcode 7 has 0 args
+-  Opcode 8 has 0 args
+-  Opcode 9 has 1 args
+-  Opcode 10 has 0 args
+-  Opcode 11 has 0 args
+-  Opcode 12 has 1 args
+-
+- The Directory Table is empty.
+-
+- The File Name Table is empty.
+-
+- Line Number Statements:
+-
+ Contents of the .zdebug_abbrev section:
+ 
+   Number TAG
+--- binutils/gas/as.c.group	2009-09-11 12:59:28.000000000 -0700
++++ binutils/gas/as.c	2009-09-29 08:48:51.000000000 -0700
+@@ -72,6 +72,9 @@ struct defsym_list
+ /* True if a listing is wanted.  */
+ int listing;
+ 
++/* If assembler shiuld debug info.  */
++enum debug_info_type gen_debug = DEBUG_UNSPECIFIED;
++
+ /* Type of debugging to generate.  */
+ enum debug_info_type debug_type = DEBUG_UNSPECIFIED;
+ int use_gnu_debug_info_extensions = 0;
+@@ -909,6 +912,8 @@ This program has absolutely no warranty.
+ 	}
+     }
+ 
++  gen_debug = debug_type;
++
+   free (shortopts);
+   free (longopts);
+ 
+--- binutils/gas/as.h.group	2009-09-04 17:58:30.000000000 -0700
++++ binutils/gas/as.h	2009-09-29 08:48:51.000000000 -0700
+@@ -429,6 +429,7 @@ enum debug_info_type
+   DEBUG_DWARF2
+ };
+ 
++extern enum debug_info_type gen_debug;
+ extern enum debug_info_type debug_type;
+ extern int use_gnu_debug_info_extensions;
+ 
+--- binutils/gas/dwarf2dbg.c.group	2009-09-11 12:59:28.000000000 -0700
++++ binutils/gas/dwarf2dbg.c	2009-09-29 08:48:51.000000000 -0700
+@@ -192,6 +192,9 @@ static unsigned int dirs_allocated;
+    doing work when there's nothing to do.  */
+ bfd_boolean dwarf2_loc_directive_seen;
+ 
++/* TRUE when any .file/.loc directive is used.  */
++static bfd_boolean dwarf2_directive_used;
++
+ /* TRUE when we're supposed to set the basic block mark whenever a
+    label is seen.  */
+ bfd_boolean dwarf2_loc_mark_labels;
+@@ -561,6 +564,8 @@ dwarf2_directive_file (int dummy ATTRIBU
+ 
+   get_filenum (filename, num);
+ 
++  dwarf2_directive_used = TRUE;
++
+   return filename;
+ }
+ 
+@@ -694,6 +699,7 @@ dwarf2_directive_loc (int dummy ATTRIBUT
+ 
+   demand_empty_rest_of_line ();
+   dwarf2_loc_directive_seen = TRUE;
++  dwarf2_directive_used = TRUE;
+   debug_type = DEBUG_NONE;
+ }
+ 
+@@ -712,6 +718,8 @@ dwarf2_directive_loc_mark_labels (int du
+       dwarf2_loc_mark_labels = value != 0;
+       demand_empty_rest_of_line ();
+     }
++
++  dwarf2_directive_used = TRUE;
+ }
+ 
+ static struct frag *
+@@ -1732,6 +1740,10 @@ dwarf2_finish (void)
+   segT info_seg;
+   int emit_other_sections = 0;
+ 
++  /* Return if -g isn't passed nor any .file/.loc directive is used.  */
++  if (!dwarf2_directive_used && gen_debug == DEBUG_UNSPECIFIED)
++    return;
++
+   info_seg = bfd_get_section_by_name (stdoutput, ".debug_info");
+   emit_other_sections = info_seg == NULL || !seg_not_empty_p (info_seg);
+ 
+--- binutils/gas/subsegs.c.group	2009-09-11 12:59:28.000000000 -0700
++++ binutils/gas/subsegs.c	2009-09-29 08:48:51.000000000 -0700
+@@ -148,15 +148,6 @@ subseg_get (const char *segname, int for
+ {
+   segT secptr;
+   segment_info_type *seginfo;
+-  const char *now_seg_name = (now_seg
+-			      ? bfd_get_section_name (stdoutput, now_seg)
+-			      : 0);
+-
+-  if (!force_new
+-      && now_seg_name
+-      && (now_seg_name == segname
+-	  || !strcmp (now_seg_name, segname)))
+-    return now_seg;
+ 
+   if (!force_new)
+     secptr = bfd_make_section_old_way (stdoutput, segname);
+--- binutils/gas/testsuite/gas/elf/dwarf2-1.d.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/dwarf2-1.d	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,100 @@
++#readelf: -w
++#name: DWARF2 1
++#not-target: ia64-*-*
++
++Contents of the .debug_info section:
++
++  Compilation Unit @ offset 0x0:
++   Length:        0x4e \(32-bit\)
++   Version:       2
++   Abbrev Offset: 0
++   Pointer Size:  4
++ <0><b>: Abbrev Number: 1 \(DW_TAG_compile_unit\)
++    < c>   DW_AT_stmt_list   : 0x0	
++    <10>   DW_AT_high_pc     : 0x.	
++    <14>   DW_AT_low_pc      : 0x.	
++    <18>   DW_AT_name        : file1.txt	
++    <22>   DW_AT_producer    : GNU C 3.3.3	
++    <2e>   DW_AT_language    : 1	\(ANSI C\)
++ <1><2f>: Abbrev Number: 2 \(DW_TAG_subprogram\)
++    <30>   DW_AT_external    : 1	
++    <31>   DW_AT_decl_file   : 1	
++    <32>   DW_AT_decl_line   : 2	
++    <33>   DW_AT_name        : func_cu1	
++    <3c>   DW_AT_type        : <0x4a>	
++    <40>   DW_AT_low_pc      : 0x.	
++    <44>   DW_AT_high_pc     : 0x.	
++    <48>   DW_AT_frame_base  : 1 byte block: 55 	\(DW_OP_reg5\)
++ <1><4a>: Abbrev Number: 3 \(DW_TAG_base_type\)
++    <4b>   DW_AT_name        : int	
++    <4f>   DW_AT_byte_size   : 4	
++    <50>   DW_AT_encoding    : 5	\(signed\)
++
++Raw dump of debug contents of section .debug_line:
++
++  Offset:                      0x0
++  Length:                      62
++  DWARF Version:               2
++  Prologue Length:             35
++  Minimum Instruction Length:  1
++  Initial value of 'is_stmt':  1
++  Line Base:                   1
++  Line Range:                  1
++  Opcode Base:                 16
++
++ Opcodes:
++  Opcode 1 has 0 args
++  Opcode 2 has 1 args
++  Opcode 3 has 1 args
++  Opcode 4 has 1 args
++  Opcode 5 has 1 args
++  Opcode 6 has 0 args
++  Opcode 7 has 0 args
++  Opcode 8 has 0 args
++  Opcode 9 has 1 args
++  Opcode 10 has 0 args
++  Opcode 11 has 0 args
++  Opcode 12 has 1 args
++  Opcode 13 has 0 args
++  Opcode 14 has 0 args
++  Opcode 15 has 0 args
++
++ The Directory Table is empty.
++
++ The File Name Table:
++  Entry	Dir	Time	Size	Name
++  1	0	0	0	file1.txt
++
++ Line Number Statements:
++  Extended opcode 2: set Address to .*
++  Advance Line by 3 to 4
++  Copy
++  Copy
++  Extended opcode 2: set Address to .*
++  Extended opcode 1: End of Sequence
++
++
++Contents of the .zdebug_abbrev section:
++
++  Number TAG
++   1      DW_TAG_compile_unit    \[has children\]
++    DW_AT_stmt_list    DW_FORM_data4
++    DW_AT_high_pc      DW_FORM_addr
++    DW_AT_low_pc       DW_FORM_addr
++    DW_AT_name         DW_FORM_string
++    DW_AT_producer     DW_FORM_string
++    DW_AT_language     DW_FORM_data1
++   2      DW_TAG_subprogram    \[no children\]
++    DW_AT_external     DW_FORM_flag
++    DW_AT_decl_file    DW_FORM_data1
++    DW_AT_decl_line    DW_FORM_data1
++    DW_AT_name         DW_FORM_string
++    DW_AT_type         DW_FORM_ref4
++    DW_AT_low_pc       DW_FORM_addr
++    DW_AT_high_pc      DW_FORM_addr
++    DW_AT_frame_base   DW_FORM_block1
++   3      DW_TAG_base_type    \[no children\]
++    DW_AT_name         DW_FORM_string
++    DW_AT_byte_size    DW_FORM_data1
++    DW_AT_encoding     DW_FORM_data1
++
+--- binutils/gas/testsuite/gas/elf/dwarf2-1.s.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/dwarf2-1.s	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,219 @@
++/* This testcase is derived from a similar test in GDB.
++
++   Copyright 2009 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++/* This tests that gdb can read compressed sections.  The contents
++   are a basic assembly file, but the .debug_abbrev section has been
++   comrpessed using zlib.  */
++
++/* Dummy function to provide debug information for.  */
++
++	.file "dwarf2-1.c"
++	.text
++	.globl _start
++_start:
++	.int 0
++.Lbegin_text1:
++	.globl func_cu1
++	.type func_cu1, %function
++func_cu1:
++.Lbegin_func_cu1:
++	.int 0
++.Lend_func_cu1:
++	.size func_cu1, .-func_cu1
++.Lend_text1:
++
++/* Debug information */
++
++	.section .debug_info
++.Lcu1_begin:
++	/* CU header */
++	.4byte	.Lcu1_end - .Lcu1_start		/* Length of Compilation Unit */
++.Lcu1_start:
++	.2byte	2				/* DWARF Version */
++	.4byte	.Labbrev1_begin			/* Offset into abbrev section */
++	.byte	4				/* Pointer size */
++
++	/* CU die */
++	.uleb128 1				/* Abbrev: DW_TAG_compile_unit */
++	.4byte	.Lline1_begin			/* DW_AT_stmt_list */
++	.4byte	.Lend_text1			/* DW_AT_high_pc */
++	.4byte	.Lbegin_text1			/* DW_AT_low_pc */
++	.ascii	"file1.txt\0"			/* DW_AT_name */
++	.ascii	"GNU C 3.3.3\0"			/* DW_AT_producer */
++	.byte	1				/* DW_AT_language (C) */
++
++	/* func_cu1 */
++	.uleb128	2			/* Abbrev: DW_TAG_subprogram */
++	.byte		1			/* DW_AT_external */
++	.byte		1			/* DW_AT_decl_file */
++	.byte		2			/* DW_AT_decl_line */
++	.ascii		"func_cu1\0"		/* DW_AT_name */
++	.4byte		.Ltype_int-.Lcu1_begin	/* DW_AT_type */
++	.4byte		.Lbegin_func_cu1	/* DW_AT_low_pc */
++	.4byte		.Lend_func_cu1		/* DW_AT_high_pc */
++	.byte		1			/* DW_AT_frame_base: length */
++	.byte		0x55			/* DW_AT_frame_base: DW_OP_reg5 */
++
++.Ltype_int:
++	.uleb128	3			/* Abbrev: DW_TAG_base_type */
++	.ascii		"int\0"			/* DW_AT_name */
++	.byte		4			/* DW_AT_byte_size */
++	.byte		5			/* DW_AT_encoding */
++
++	.byte		0			/* End of children of CU */
++
++.Lcu1_end:
++
++/* Line table */
++	.section .debug_line
++.Lline1_begin:
++	.4byte		.Lline1_end - .Lline1_start	/* Initial length */
++.Lline1_start:
++	.2byte		2			/* Version */
++	.4byte		.Lline1_lines - .Lline1_hdr	/* header_length */
++.Lline1_hdr:
++	.byte		1			/* Minimum insn length */
++	.byte		1			/* default_is_stmt */
++	.byte		1			/* line_base */
++ 	.byte		1			/* line_range */
++	.byte		0x10			/* opcode_base */
++
++	/* Standard lengths */
++	.byte		0
++	.byte		1
++	.byte		1
++	.byte		1
++	.byte		1
++	.byte		0
++	.byte		0
++	.byte		0
++	.byte		1
++	.byte		0
++	.byte		0
++	.byte		1
++	.byte		0
++	.byte		0
++	.byte		0
++
++	/* Include directories */
++	.byte		0
++
++	/* File names */
++	.ascii		"file1.txt\0"
++	.uleb128	0
++	.uleb128	0
++	.uleb128	0
++
++	.byte		0
++
++.Lline1_lines:
++	.byte		0	/* DW_LNE_set_address */
++	.uleb128	5
++	.byte		2
++	.4byte		.Lbegin_func_cu1
++
++	.byte		3	/* DW_LNS_advance_line */
++	.sleb128	3	/* ... to 4 */
++
++	.byte		1	/* DW_LNS_copy */
++
++	.byte		1	/* DW_LNS_copy (second time as an end-of-prologue marker) */
++
++	.byte		0	/* DW_LNE_set_address */
++	.uleb128	5
++	.byte		2
++	.4byte		.Lend_func_cu1
++
++	.byte		0	/* DW_LNE_end_of_sequence */
++	.uleb128	1
++	.byte		1
++
++.Lline1_end:
++
++/* Abbrev table -- compressed */
++	.section .zdebug_abbrev
++.Labbrev1_begin:
++	.ascii		"ZLIB"
++	.4byte		0
++	.2byte		0
++	.byte		0
++	.byte		51
++	.byte		0x78
++	.byte		0x5e
++	.byte		0x63
++	.byte		0x14
++	.byte		0x64
++	.byte		0x14
++	.byte		0x60
++	.byte		0x13
++	.byte		0x62
++	.byte		0x14
++	.byte		0x64
++	.byte		0x64
++	.byte		0xe6
++	.byte		0x50
++	.byte		0xe5
++	.byte		0x10
++	.byte		0xe6
++	.byte		0x66
++	.byte		0x60
++	.byte		0x60
++	.byte		0xd2
++	.byte		0x63
++	.byte		0xb0
++	.byte		0xe7
++	.byte		0xb1
++	.byte		0xe2
++	.byte		0xb6
++	.byte		0xe6
++	.byte		0x66
++	.byte		0xe6
++	.byte		0xf0
++	.byte		0x14
++	.byte		0x16
++	.byte		0x64
++	.byte		0x14
++	.byte		0x62
++	.byte		0x74
++	.byte		0xe0
++	.byte		0x02
++	.byte		0x00
++	.byte		0x25
++	.byte		0x78
++	.byte		0x02
++	.byte		0x81
++	.byte		0x78
++	.byte		0x9c
++	.byte		0x63
++	.byte		0x60
++	.byte		0x60
++	.byte		0x56
++	.byte		0x61
++	.byte		0x60
++	.byte		0xe6
++	.byte		0xe0
++	.byte		0xe6
++	.byte		0xb6
++	.byte		0xe3
++	.byte		0x66
++	.byte		0x00
++	.byte		0x02
++	.byte		0x00
++	.byte		0x04
++	.byte		0x9c
++	.byte		0x00
++	.byte		0x92
+--- binutils/gas/testsuite/gas/elf/dwarf2-2.d.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/dwarf2-2.d	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,100 @@
++#readelf: -w
++#name: DWARF2 2
++#not-target: ia64-*-*
++
++Contents of the .debug_info section:
++
++  Compilation Unit @ offset 0x0:
++   Length:        0x4e \(32-bit\)
++   Version:       2
++   Abbrev Offset: 0
++   Pointer Size:  4
++ <0><b>: Abbrev Number: 1 \(DW_TAG_compile_unit\)
++    < c>   DW_AT_stmt_list   : 0x0	
++    <10>   DW_AT_high_pc     : 0x.	
++    <14>   DW_AT_low_pc      : 0x.	
++    <18>   DW_AT_name        : file1.txt	
++    <22>   DW_AT_producer    : GNU C 3.3.3	
++    <2e>   DW_AT_language    : 1	\(ANSI C\)
++ <1><2f>: Abbrev Number: 2 \(DW_TAG_subprogram\)
++    <30>   DW_AT_external    : 1	
++    <31>   DW_AT_decl_file   : 1	
++    <32>   DW_AT_decl_line   : 2	
++    <33>   DW_AT_name        : func_cu1	
++    <3c>   DW_AT_type        : <0x4a>	
++    <40>   DW_AT_low_pc      : 0x.	
++    <44>   DW_AT_high_pc     : 0x.	
++    <48>   DW_AT_frame_base  : 1 byte block: 55 	\(DW_OP_reg5\)
++ <1><4a>: Abbrev Number: 3 \(DW_TAG_base_type\)
++    <4b>   DW_AT_name        : int	
++    <4f>   DW_AT_byte_size   : 4	
++    <50>   DW_AT_encoding    : 5	\(signed\)
++
++Raw dump of debug contents of section .debug_line:
++
++  Offset:                      0x0
++  Length:                      62
++  DWARF Version:               2
++  Prologue Length:             35
++  Minimum Instruction Length:  1
++  Initial value of 'is_stmt':  1
++  Line Base:                   1
++  Line Range:                  1
++  Opcode Base:                 16
++
++ Opcodes:
++  Opcode 1 has 0 args
++  Opcode 2 has 1 args
++  Opcode 3 has 1 args
++  Opcode 4 has 1 args
++  Opcode 5 has 1 args
++  Opcode 6 has 0 args
++  Opcode 7 has 0 args
++  Opcode 8 has 0 args
++  Opcode 9 has 1 args
++  Opcode 10 has 0 args
++  Opcode 11 has 0 args
++  Opcode 12 has 1 args
++  Opcode 13 has 0 args
++  Opcode 14 has 0 args
++  Opcode 15 has 0 args
++
++ The Directory Table is empty.
++
++ The File Name Table:
++  Entry	Dir	Time	Size	Name
++  1	0	0	0	file1.txt
++
++ Line Number Statements:
++  Extended opcode 2: set Address to .*
++  Advance Line by 3 to 4
++  Copy
++  Copy
++  Extended opcode 2: set Address to .*
++  Extended opcode 1: End of Sequence
++
++
++Contents of the .zdebug_abbrev section:
++
++  Number TAG
++   1      DW_TAG_compile_unit    \[has children\]
++    DW_AT_stmt_list    DW_FORM_data4
++    DW_AT_high_pc      DW_FORM_addr
++    DW_AT_low_pc       DW_FORM_addr
++    DW_AT_name         DW_FORM_string
++    DW_AT_producer     DW_FORM_string
++    DW_AT_language     DW_FORM_data1
++   2      DW_TAG_subprogram    \[no children\]
++    DW_AT_external     DW_FORM_flag
++    DW_AT_decl_file    DW_FORM_data1
++    DW_AT_decl_line    DW_FORM_data1
++    DW_AT_name         DW_FORM_string
++    DW_AT_type         DW_FORM_ref4
++    DW_AT_low_pc       DW_FORM_addr
++    DW_AT_high_pc      DW_FORM_addr
++    DW_AT_frame_base   DW_FORM_block1
++   3      DW_TAG_base_type    \[no children\]
++    DW_AT_name         DW_FORM_string
++    DW_AT_byte_size    DW_FORM_data1
++    DW_AT_encoding     DW_FORM_data1
++
+--- binutils/gas/testsuite/gas/elf/dwarf2-2.s.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/dwarf2-2.s	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,219 @@
++/* This testcase is derived from a similar test in GDB.
++
++   Copyright 2009 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++/* This tests that gdb can read compressed sections.  The contents
++   are a basic assembly file, but the .debug_abbrev section has been
++   comrpessed using zlib.  */
++
++/* Dummy function to provide debug information for.  */
++
++	.file "dwarf2-2.c"
++	.section .gnu.linkonce.t.foo,"axG",%progbits,foo,comdat
++	.globl _start
++_start:
++	.int 0
++.Lbegin_text1:
++	.globl func_cu1
++	.type func_cu1, %function
++func_cu1:
++.Lbegin_func_cu1:
++	.int 0
++.Lend_func_cu1:
++	.size func_cu1, .-func_cu1
++.Lend_text1:
++
++/* Debug information */
++
++	.section .debug_info,"G",%progbits,foo,comdat
++.Lcu1_begin:
++	/* CU header */
++	.4byte	.Lcu1_end - .Lcu1_start		/* Length of Compilation Unit */
++.Lcu1_start:
++	.2byte	2				/* DWARF Version */
++	.4byte	.Labbrev1_begin			/* Offset into abbrev section */
++	.byte	4				/* Pointer size */
++
++	/* CU die */
++	.uleb128 1				/* Abbrev: DW_TAG_compile_unit */
++	.4byte	.Lline1_begin			/* DW_AT_stmt_list */
++	.4byte	.Lend_text1			/* DW_AT_high_pc */
++	.4byte	.Lbegin_text1			/* DW_AT_low_pc */
++	.ascii	"file1.txt\0"			/* DW_AT_name */
++	.ascii	"GNU C 3.3.3\0"			/* DW_AT_producer */
++	.byte	1				/* DW_AT_language (C) */
++
++	/* func_cu1 */
++	.uleb128	2			/* Abbrev: DW_TAG_subprogram */
++	.byte		1			/* DW_AT_external */
++	.byte		1			/* DW_AT_decl_file */
++	.byte		2			/* DW_AT_decl_line */
++	.ascii		"func_cu1\0"		/* DW_AT_name */
++	.4byte		.Ltype_int-.Lcu1_begin	/* DW_AT_type */
++	.4byte		.Lbegin_func_cu1	/* DW_AT_low_pc */
++	.4byte		.Lend_func_cu1		/* DW_AT_high_pc */
++	.byte		1			/* DW_AT_frame_base: length */
++	.byte		0x55			/* DW_AT_frame_base: DW_OP_reg5 */
++
++.Ltype_int:
++	.uleb128	3			/* Abbrev: DW_TAG_base_type */
++	.ascii		"int\0"			/* DW_AT_name */
++	.byte		4			/* DW_AT_byte_size */
++	.byte		5			/* DW_AT_encoding */
++
++	.byte		0			/* End of children of CU */
++
++.Lcu1_end:
++
++/* Line table */
++	.section .debug_line,"G",%progbits,foo,comdat
++.Lline1_begin:
++	.4byte		.Lline1_end - .Lline1_start	/* Initial length */
++.Lline1_start:
++	.2byte		2			/* Version */
++	.4byte		.Lline1_lines - .Lline1_hdr	/* header_length */
++.Lline1_hdr:
++	.byte		1			/* Minimum insn length */
++	.byte		1			/* default_is_stmt */
++	.byte		1			/* line_base */
++ 	.byte		1			/* line_range */
++	.byte		0x10			/* opcode_base */
++
++	/* Standard lengths */
++	.byte		0
++	.byte		1
++	.byte		1
++	.byte		1
++	.byte		1
++	.byte		0
++	.byte		0
++	.byte		0
++	.byte		1
++	.byte		0
++	.byte		0
++	.byte		1
++	.byte		0
++	.byte		0
++	.byte		0
++
++	/* Include directories */
++	.byte		0
++
++	/* File names */
++	.ascii		"file1.txt\0"
++	.uleb128	0
++	.uleb128	0
++	.uleb128	0
++
++	.byte		0
++
++.Lline1_lines:
++	.byte		0	/* DW_LNE_set_address */
++	.uleb128	5
++	.byte		2
++	.4byte		.Lbegin_func_cu1
++
++	.byte		3	/* DW_LNS_advance_line */
++	.sleb128	3	/* ... to 4 */
++
++	.byte		1	/* DW_LNS_copy */
++
++	.byte		1	/* DW_LNS_copy (second time as an end-of-prologue marker) */
++
++	.byte		0	/* DW_LNE_set_address */
++	.uleb128	5
++	.byte		2
++	.4byte		.Lend_func_cu1
++
++	.byte		0	/* DW_LNE_end_of_sequence */
++	.uleb128	1
++	.byte		1
++
++.Lline1_end:
++
++/* Abbrev table -- compressed */
++	.section .zdebug_abbrev,"G",%progbits,foo,comdat
++.Labbrev1_begin:
++	.ascii		"ZLIB"
++	.4byte		0
++	.2byte		0
++	.byte		0
++	.byte		51
++	.byte		0x78
++	.byte		0x5e
++	.byte		0x63
++	.byte		0x14
++	.byte		0x64
++	.byte		0x14
++	.byte		0x60
++	.byte		0x13
++	.byte		0x62
++	.byte		0x14
++	.byte		0x64
++	.byte		0x64
++	.byte		0xe6
++	.byte		0x50
++	.byte		0xe5
++	.byte		0x10
++	.byte		0xe6
++	.byte		0x66
++	.byte		0x60
++	.byte		0x60
++	.byte		0xd2
++	.byte		0x63
++	.byte		0xb0
++	.byte		0xe7
++	.byte		0xb1
++	.byte		0xe2
++	.byte		0xb6
++	.byte		0xe6
++	.byte		0x66
++	.byte		0xe6
++	.byte		0xf0
++	.byte		0x14
++	.byte		0x16
++	.byte		0x64
++	.byte		0x14
++	.byte		0x62
++	.byte		0x74
++	.byte		0xe0
++	.byte		0x02
++	.byte		0x00
++	.byte		0x25
++	.byte		0x78
++	.byte		0x02
++	.byte		0x81
++	.byte		0x78
++	.byte		0x9c
++	.byte		0x63
++	.byte		0x60
++	.byte		0x60
++	.byte		0x56
++	.byte		0x61
++	.byte		0x60
++	.byte		0xe6
++	.byte		0xe0
++	.byte		0xe6
++	.byte		0xb6
++	.byte		0xe3
++	.byte		0x66
++	.byte		0x00
++	.byte		0x02
++	.byte		0x00
++	.byte		0x04
++	.byte		0x9c
++	.byte		0x00
++	.byte		0x92
+--- binutils/gas/testsuite/gas/elf/dwarf2-3.d.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/dwarf2-3.d	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,38 @@
++#readelf: -wl
++#name: DWARF2 3
++#not-target: ia64-*-*
++
++Raw dump of debug contents of section .debug_line:
++
++  Offset:                      0x0
++  Length:                      41
++  DWARF Version:               2
++  Prologue Length:             35
++  Minimum Instruction Length:  1
++  Initial value of 'is_stmt':  1
++  Line Base:                   -5
++  Line Range:                  14
++  Opcode Base:                 13
++
++ Opcodes:
++  Opcode 1 has 0 args
++  Opcode 2 has 1 args
++  Opcode 3 has 1 args
++  Opcode 4 has 1 args
++  Opcode 5 has 1 args
++  Opcode 6 has 0 args
++  Opcode 7 has 0 args
++  Opcode 8 has 0 args
++  Opcode 9 has 1 args
++  Opcode 10 has 0 args
++  Opcode 11 has 0 args
++  Opcode 12 has 1 args
++
++ The Directory Table is empty.
++
++ The File Name Table:
++  Entry	Dir	Time	Size	Name
++  1	0	0	0	/beginwarn.c
++
++ Line Number Statements:
++
+--- binutils/gas/testsuite/gas/elf/dwarf2-3.s.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/dwarf2-3.s	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,186 @@
++	.file	"beginwarn.c"
++	.section	.debug_abbrev,"",@progbits
++.Ldebug_abbrev0:
++	.section	.debug_info,"",@progbits
++.Ldebug_info0:
++	.section	.debug_line,"",@progbits
++.Ldebug_line0:
++	.text
++.Ltext0:
++	.section	.init_array,"aw"
++	.align 4
++	.type	init_array, @object
++	.size	init_array, 4
++init_array:
++	.long	foo
++	.section	.gnu.warning.foo,"a",@progbits
++	.type	_evoke_link_warning_foo, @object
++	.size	_evoke_link_warning_foo, 27
++_evoke_link_warning_foo:
++	.string	"function foo is deprecated"
++	.file 1 "/beginwarn.c"
++	.text
++.Letext0:
++	.section	.debug_info
++	.long	0x8a
++	.value	0x2
++	.long	.Ldebug_abbrev0
++	.byte	0x4
++	.uleb128 0x1
++	.long	.Ldebug_line0
++	.long	.Letext0
++	.long	.Ltext0
++	.long	.LASF4
++	.byte	0x1
++	.long	.LASF5
++	.uleb128 0x2
++	.long	0x31
++	.long	0x38
++	.uleb128 0x3
++	.long	0x31
++	.byte	0x1a
++	.byte	0x0
++	.uleb128 0x4
++	.long	.LASF0
++	.byte	0x4
++	.byte	0x7
++	.uleb128 0x5
++	.long	0x3d
++	.uleb128 0x4
++	.long	.LASF1
++	.byte	0x1
++	.byte	0x6
++	.uleb128 0x6
++	.long	.LASF2
++	.byte	0x1
++	.byte	0x3
++	.long	0x55
++	.byte	0x5
++	.byte	0x3
++	.long	_evoke_link_warning_foo
++	.uleb128 0x5
++	.long	0x21
++	.uleb128 0x2
++	.long	0x6a
++	.long	0x6c
++	.uleb128 0x3
++	.long	0x31
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x7
++	.byte	0x1
++	.uleb128 0x5
++	.long	0x71
++	.uleb128 0x8
++	.byte	0x4
++	.long	0x6a
++	.uleb128 0x6
++	.long	.LASF3
++	.byte	0x1
++	.byte	0x9
++	.long	0x88
++	.byte	0x5
++	.byte	0x3
++	.long	init_array
++	.uleb128 0x5
++	.long	0x5a
++	.byte	0x0
++	.section	.debug_abbrev
++	.uleb128 0x1
++	.uleb128 0x11
++	.byte	0x1
++	.uleb128 0x10
++	.uleb128 0x6
++	.uleb128 0x12
++	.uleb128 0x1
++	.uleb128 0x11
++	.uleb128 0x1
++	.uleb128 0x25
++	.uleb128 0xe
++	.uleb128 0x13
++	.uleb128 0xb
++	.uleb128 0x3
++	.uleb128 0xe
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x2
++	.uleb128 0x1
++	.byte	0x1
++	.uleb128 0x1
++	.uleb128 0x13
++	.uleb128 0x49
++	.uleb128 0x13
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x3
++	.uleb128 0x21
++	.byte	0x0
++	.uleb128 0x49
++	.uleb128 0x13
++	.uleb128 0x2f
++	.uleb128 0xb
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x4
++	.uleb128 0x24
++	.byte	0x0
++	.uleb128 0x3
++	.uleb128 0xe
++	.uleb128 0xb
++	.uleb128 0xb
++	.uleb128 0x3e
++	.uleb128 0xb
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x5
++	.uleb128 0x26
++	.byte	0x0
++	.uleb128 0x49
++	.uleb128 0x13
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x6
++	.uleb128 0x34
++	.byte	0x0
++	.uleb128 0x3
++	.uleb128 0xe
++	.uleb128 0x3a
++	.uleb128 0xb
++	.uleb128 0x3b
++	.uleb128 0xb
++	.uleb128 0x49
++	.uleb128 0x13
++	.uleb128 0x2
++	.uleb128 0xa
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x7
++	.uleb128 0x15
++	.byte	0x0
++	.uleb128 0x27
++	.uleb128 0xc
++	.byte	0x0
++	.byte	0x0
++	.uleb128 0x8
++	.uleb128 0xf
++	.byte	0x0
++	.uleb128 0xb
++	.uleb128 0xb
++	.uleb128 0x49
++	.uleb128 0x13
++	.byte	0x0
++	.byte	0x0
++	.byte	0x0
++	.section	.debug_str,"MS",@progbits,1
++.LASF5:
++	.string	"/beginwarn.c"
++.LASF0:
++	.string	"unsigned int"
++.LASF3:
++	.string	"init_array"
++.LASF2:
++	.string	"_evoke_link_warning_foo"
++.LASF4:
++	.string	"GNU C 3.4.6"
++.LASF1:
++	.string	"char"
+--- binutils/gas/testsuite/gas/elf/elf.exp.group	2009-09-29 08:44:04.000000000 -0700
++++ binutils/gas/testsuite/gas/elf/elf.exp	2009-09-29 08:48:51.000000000 -0700
+@@ -149,4 +149,7 @@ if { ([istarget "*-*-*elf*"]		
+ 
+     run_dump_test "section6" 
+     run_dump_test "section7" 
++    run_dump_test "dwarf2-1" 
++    run_dump_test "dwarf2-2" 
++    run_dump_test "dwarf2-3" 
+ }
+--- binutils/gas/testsuite/gas/i386/debug1.d.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/i386/debug1.d	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,46 @@
++#as: --gdwarf-2
++#readelf: -wl
++#name: DWARF2 debugging information 1
++
++Raw dump of debug contents of section .debug_line:
++
++  Offset:                      0x0
++  Length:                      .*
++  DWARF Version:               2
++  Prologue Length:             .*
++  Minimum Instruction Length:  1
++  Initial value of 'is_stmt':  1
++  Line Base:                   -5
++  Line Range:                  14
++  Opcode Base:                 13
++
++ Opcodes:
++  Opcode 1 has 0 args
++  Opcode 2 has 1 args
++  Opcode 3 has 1 args
++  Opcode 4 has 1 args
++  Opcode 5 has 1 args
++  Opcode 6 has 0 args
++  Opcode 7 has 0 args
++  Opcode 8 has 0 args
++  Opcode 9 has 1 args
++  Opcode 10 has 0 args
++  Opcode 11 has 0 args
++  Opcode 12 has 1 args
++
++ The Directory Table:
++  .*
++
++ The File Name Table:
++  Entry	Dir	Time	Size	Name
++  1	1	0	0	debug1.s
++
++ Line Number Statements:
++  Extended opcode 2: set Address to 0x0
++  Special opcode 7: advance Address by 0 to 0x0 and Line by 2 to 3
++  Special opcode 20: advance Address by 1 to 0x1 and Line by 1 to 4
++  Special opcode 20: advance Address by 1 to 0x2 and Line by 1 to 5
++  Advance PC by 1 to 0x3
++  Extended opcode 1: End of Sequence
++
++
+--- binutils/gas/testsuite/gas/i386/debug1.s.group	2009-09-29 08:48:51.000000000 -0700
++++ binutils/gas/testsuite/gas/i386/debug1.s	2009-09-29 08:48:51.000000000 -0700
+@@ -0,0 +1,5 @@
++	.file "debug1.s"
++	.text
++	nop
++	nop
++	nop
+--- binutils/gas/testsuite/gas/i386/i386.exp.group	2009-09-29 08:44:03.000000000 -0700
++++ binutils/gas/testsuite/gas/i386/i386.exp	2009-09-29 08:49:45.000000000 -0700
+@@ -193,6 +193,7 @@ if [expr ([istarget "i*86-*-*"] ||  [ist
+ 	run_dump_test "ifunc"
+ 	run_list_test "l1om-inval" "-march=l1om --32"
+ 	run_dump_test "localpic"
++	run_dump_test "debug1"
+     }
+ 
+     # This is a PE specific test.
+@@ -349,6 +350,7 @@ if [expr ([istarget "i*86-*-*"] || [ista
+ 	run_dump_test "x86-64-ifunc"
+ 	run_dump_test "l1om"
+ 	run_dump_test "x86-64-localpic"
++	run_dump_test "debug1"
+     }
+ 
+     set ASFLAGS "$old_ASFLAGS"

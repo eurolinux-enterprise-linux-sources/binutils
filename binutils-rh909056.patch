@@ -1,0 +1,16 @@
+diff -up ./binutils/readelf.c.fix ./binutils/readelf.c
+--- ./binutils/readelf.c.fix	2013-02-08 15:04:21.179452758 +1000
++++ ./binutils/readelf.c	2013-02-08 15:26:40.573857455 +1000
+@@ -11363,6 +11363,12 @@ get_archive_member_name (struct archive_
+       char * member_file_name;
+       char * member_name;
+ 
++      if (arch->longnames == NULL || arch->longnames_size == 0)
++      {
++        error (_("Archive member uses long names, but no longname table found\n"));
++        return NULL;
++      }
++
+       arch->nested_member_origin = 0;
+       k = j = strtoul (arch->arhdr.ar_name + 1, &endp, 10);
+       if (arch->is_thin_archive && endp != NULL && * endp == ':')

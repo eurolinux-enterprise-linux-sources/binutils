@@ -1,0 +1,26 @@
+diff -Nrup a/gas/doc/as.texinfo b/gas/doc/as.texinfo
+--- a/gas/doc/as.texinfo	2014-04-09 10:19:23.450872927 -0600
++++ b/gas/doc/as.texinfo	2014-04-09 11:36:19.563554450 -0600
+@@ -236,9 +236,9 @@ gcc(1), ld(1), and the Info entries for
+  [@b{--listing-lhs-width2}=@var{NUM}] [@b{--listing-rhs-width}=@var{NUM}]
+  [@b{--listing-cont-lines}=@var{NUM}] [@b{--keep-locals}] [@b{-o}
+  @var{objfile}] [@b{-R}] [@b{--reduce-memory-overheads}] [@b{--statistics}]
+- [@b{-v}] [@b{-version}] [@b{--version}] [@b{-W}] [@b{--warn}]
+- [@b{--fatal-warnings}] [@b{-w}] [@b{-x}] [@b{-Z}] [@b{@@@var{FILE}}]
+- [@b{--target-help}] [@var{target-options}]
++ [@b{-v}] [@b{-V}] [@b{-verbose}] [@b{--verbose}] [@b{-version}] [@b{--version}]
++ [@b{-W}] [@b{--warn}] [@b{--fatal-warnings}] [@b{-w}] [@b{-x}] [@b{-Z}]
++ [@b{@@@var{FILE}}] [@b{--target-help}] [@var{target-options}]
+  [@b{--}|@var{files} @dots{}]
+ @c
+ @c Target dependent options are listed below.  Keep the list sorted.
+@@ -644,6 +644,9 @@ assembly.
+ Remove local absolute symbols from the outgoing symbol table.
+ 
+ @item -v
++@itemx -V
++@itemx -verbose
++@itemx --verbose
+ Print the @command{as} version.
+ 
+ @item -version

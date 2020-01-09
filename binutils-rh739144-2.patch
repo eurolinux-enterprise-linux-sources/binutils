@@ -1,0 +1,522 @@
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt1.d b/ld/testsuite/ld-powerpc/tlsopt1.d
+--- a/ld/testsuite/ld-powerpc/tlsopt1.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt1.d	2012-05-08 12:04:00.855778831 -0600
+@@ -0,0 +1,25 @@
++#source: tlsopt1.s
++#source: tlslib.s
++#as: -a64
++#ld: -melf64ppc
++#objdump: -dr
++#target: powerpc64*-*-*
++
++.*: +file format elf64-powerpc
++
++Disassembly of section \.text:
++
++0+100000e8 <\.__tls_get_addr>:
++    100000e8:	4e 80 00 20 	blr
++
++Disassembly of section \.no_opt1:
++
++0+100000ec <\.no_opt1>:
++    100000ec:	38 62 80 08 	addi    r3,r2,-32760
++    100000f0:	2c 24 00 00 	cmpdi   r4,0
++    100000f4:	41 82 00 10 	beq-    .*
++    100000f8:	4b ff ff f1 	bl      100000e8 <\.__tls_get_addr>
++    100000fc:	60 00 00 00 	nop
++    10000100:	48 00 00 0c 	b       .*
++    10000104:	4b ff ff e5 	bl      100000e8 <\.__tls_get_addr>
++    10000108:	60 00 00 00 	nop
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt1.s b/ld/testsuite/ld-powerpc/tlsopt1.s
+--- a/ld/testsuite/ld-powerpc/tlsopt1.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt1.s	2012-05-08 12:04:00.855778831 -0600
+@@ -0,0 +1,14 @@
++ .section ".no_opt1", "ax", %progbits
++# this section should not be optimised since we have old-style
++# __tls_get_addr without marker relocs, and the arg setup insn
++# is shared with two __tls_get_addr calls.
++ addi 3,2,gd@got@tlsgd
++ cmpdi 4,0
++ beq 0f
++ bl __tls_get_addr
++ nop
++ b 1f
++0:
++ bl __tls_get_addr
++ nop
++1:
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt1_32.d b/ld/testsuite/ld-powerpc/tlsopt1_32.d
+--- a/ld/testsuite/ld-powerpc/tlsopt1_32.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt1_32.d	2012-05-08 12:03:52.418822570 -0600
+@@ -0,0 +1,24 @@
++#source: tlsopt1_32.s
++#source: tlslib32.s
++#as: -a32
++#ld: -melf32ppc
++#objdump: -dr
++#target: powerpc*-*-*
++
++.*: +file format elf32-powerpc
++
++Disassembly of section \.text:
++
++0+1800094 <__tls_get_addr>:
++ 1800094:	4e 80 00 20 	blr
++
++Disassembly of section \.no_opt1:
++
++0+1800098 <\.no_opt1>:
++ 1800098:	38 6d ff f4 	addi    r3,r13,-12
++ 180009c:	2c 04 00 00 	cmpwi   r4,0
++ 18000a0:	41 82 00 0c 	beq-    .*
++ 18000a4:	4b ff ff f1 	bl      1800094 <__tls_get_addr>
++ 18000a8:	48 00 00 08 	b       .*
++ 18000ac:	4b ff ff e9 	bl      1800094 <__tls_get_addr>
++#pass
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt1_32.s b/ld/testsuite/ld-powerpc/tlsopt1_32.s
+--- a/ld/testsuite/ld-powerpc/tlsopt1_32.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt1_32.s	2012-05-08 12:03:52.418822570 -0600
+@@ -0,0 +1,12 @@
++ .section ".no_opt1", "ax", %progbits
++# this section should not be optimised since we have old-style
++# __tls_get_addr without marker relocs, and the arg setup insn
++# is shared with two __tls_get_addr calls.
++ addi 3,13,gd@got@tlsgd
++ cmpwi 4,0
++ beq 0f
++ bl __tls_get_addr
++ b 1f
++0:
++ bl __tls_get_addr
++1:
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt2.d b/ld/testsuite/ld-powerpc/tlsopt2.d
+--- a/ld/testsuite/ld-powerpc/tlsopt2.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt2.d	2012-05-08 12:04:00.855778831 -0600
+@@ -0,0 +1,23 @@
++#source: tlsopt2.s
++#source: tlslib.s
++#as: -a64
++#ld: -melf64ppc
++#objdump: -dr
++#target: powerpc64*-*-*
++
++.*: +file format elf64-powerpc
++
++Disassembly of section \.text:
++
++0+100000e8 <\.__tls_get_addr>:
++    100000e8:	4e 80 00 20 	blr
++
++Disassembly of section \.no_opt2:
++
++0+100000ec <\.no_opt2>:
++    100000ec:	38 62 80 08 	addi    r3,r2,-32760
++    100000f0:	2c 24 00 00 	cmpdi   r4,0
++    100000f4:	41 82 00 08 	beq-    .*
++    100000f8:	38 62 80 08 	addi    r3,r2,-32760
++    100000fc:	4b ff ff ed 	bl      100000e8 <\.__tls_get_addr>
++    10000100:	60 00 00 00 	nop
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt2.s b/ld/testsuite/ld-powerpc/tlsopt2.s
+--- a/ld/testsuite/ld-powerpc/tlsopt2.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt2.s	2012-05-08 12:04:00.855778831 -0600
+@@ -0,0 +1,11 @@
++ .section ".no_opt2", "ax", %progbits
++# this section should not be optimised since we have old-style
++# __tls_get_addr without marker relocs, and two arg setup insns
++# feed into one __tls_get_addr call.
++ addi 3,2,gd@got@tlsgd
++ cmpdi 4,0
++ beq 0f
++ addi 3,2,gd@got@tlsgd
++0:
++ bl __tls_get_addr
++ nop
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt2_32.d b/ld/testsuite/ld-powerpc/tlsopt2_32.d
+--- a/ld/testsuite/ld-powerpc/tlsopt2_32.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt2_32.d	2012-05-08 12:03:52.418822571 -0600
+@@ -0,0 +1,23 @@
++#source: tlsopt2_32.s
++#source: tlslib32.s
++#as: -a32
++#ld: -melf32ppc
++#objdump: -dr
++#target: powerpc*-*-*
++
++.*: +file format elf32-powerpc
++
++Disassembly of section \.text:
++
++0+1800094 <__tls_get_addr>:
++ 1800094:	4e 80 00 20 	blr
++
++Disassembly of section \.no_opt2:
++
++0+1800098 <\.no_opt2>:
++ 1800098:	38 6d ff f4 	addi    r3,r13,-12
++ 180009c:	2c 04 00 00 	cmpwi   r4,0
++ 18000a0:	41 82 00 08 	beq-    .*
++ 18000a4:	38 6d ff f4 	addi    r3,r13,-12
++ 18000a8:	4b ff ff ed 	bl      1800094 <__tls_get_addr>
++#pass
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt2_32.s b/ld/testsuite/ld-powerpc/tlsopt2_32.s
+--- a/ld/testsuite/ld-powerpc/tlsopt2_32.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt2_32.s	2012-05-08 12:03:52.418822571 -0600
+@@ -0,0 +1,10 @@
++ .section ".no_opt2", "ax", %progbits
++# this section should not be optimised since we have old-style
++# __tls_get_addr without marker relocs, and two arg setup insns
++# feed into one __tls_get_addr call.
++ addi 3,13,gd@got@tlsgd
++ cmpwi 4,0
++ beq 0f
++ addi 3,13,gd@got@tlsgd
++0:
++ bl __tls_get_addr
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt3.d b/ld/testsuite/ld-powerpc/tlsopt3.d
+--- a/ld/testsuite/ld-powerpc/tlsopt3.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt3.d	2012-05-08 12:04:00.856778824 -0600
+@@ -0,0 +1,26 @@
++#source: tlsopt3.s
++#source: tlslib.s
++#as: -a64
++#ld: -melf64ppc
++#objdump: -dr
++#target: powerpc64*-*-*
++
++.*: +file format elf64-powerpc
++
++Disassembly of section \.text:
++
++00000000100000e8 <\.__tls_get_addr>:
++    100000e8:	4e 80 00 20 	blr
++
++Disassembly of section \.no_opt3:
++
++00000000100000ec <\.no_opt3>:
++    100000ec:	38 62 80 08 	addi    r3,r2,-32760
++    100000f0:	48 00 00 0c 	b       .*
++    100000f4:	38 62 80 18 	addi    r3,r2,-32744
++    100000f8:	48 00 00 10 	b       .*
++    100000fc:	4b ff ff ed 	bl      100000e8 <\.__tls_get_addr>
++    10000100:	60 00 00 00 	nop
++    10000104:	48 00 00 0c 	b       .*
++    10000108:	4b ff ff e1 	bl      100000e8 <\.__tls_get_addr>
++    1000010c:	60 00 00 00 	nop
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt3.s b/ld/testsuite/ld-powerpc/tlsopt3.s
+--- a/ld/testsuite/ld-powerpc/tlsopt3.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt3.s	2012-05-08 12:04:00.856778824 -0600
+@@ -0,0 +1,19 @@
++ .section ".tbss","awT",@nobits
++ .global gd0
++ .align 3
++gd0: .space 8
++
++ .section ".no_opt3", "ax", %progbits
++# this section should also not be optimised
++ addi 3,2,gd@got@tlsgd
++ b 0f
++ addi 3,2,gd0@got@tlsgd
++ b 1f
++0:
++ bl __tls_get_addr
++ nop
++ b 2f
++1:
++ bl __tls_get_addr
++ nop
++2:
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt3_32.d b/ld/testsuite/ld-powerpc/tlsopt3_32.d
+--- a/ld/testsuite/ld-powerpc/tlsopt3_32.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt3_32.d	2012-05-08 12:03:52.419822566 -0600
+@@ -0,0 +1,25 @@
++#source: tlsopt3_32.s
++#source: tlslib32.s
++#as: -a32
++#ld: -melf32ppc
++#objdump: -dr
++#target: powerpc*-*-*
++
++.*: +file format elf32-powerpc
++
++Disassembly of section \.text:
++
++0+1800094 <__tls_get_addr>:
++ 1800094:	4e 80 00 20 	blr
++
++Disassembly of section \.no_opt3:
++
++0+1800098 <\.no_opt3>:
++ 1800098:	38 6d ff ec 	addi    r3,r13,-20
++ 180009c:	48 00 00 0c 	b       .*
++ 18000a0:	38 6d ff f4 	addi    r3,r13,-12
++ 18000a4:	48 00 00 0c 	b       .*
++ 18000a8:	4b ff ff ed 	bl      1800094 <__tls_get_addr>
++ 18000ac:	48 00 00 08 	b       .*
++ 18000b0:	4b ff ff e5 	bl      1800094 <__tls_get_addr>
++#pass
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt3_32.s b/ld/testsuite/ld-powerpc/tlsopt3_32.s
+--- a/ld/testsuite/ld-powerpc/tlsopt3_32.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt3_32.s	2012-05-08 12:03:52.419822566 -0600
+@@ -0,0 +1,17 @@
++ .section ".tbss","awT",@nobits
++ .global gd0
++ .align 3
++gd0: .space 8
++
++ .section ".no_opt3", "ax", %progbits
++# this section should also not be optimised
++ addi 3,13,gd@got@tlsgd
++ b 0f
++ addi 3,13,gd0@got@tlsgd
++ b 1f
++0:
++ bl __tls_get_addr
++ b 2f
++1:
++ bl __tls_get_addr
++2:
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt4.d b/ld/testsuite/ld-powerpc/tlsopt4.d
+--- a/ld/testsuite/ld-powerpc/tlsopt4.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt4.d	2012-05-08 12:04:00.857778818 -0600
+@@ -0,0 +1,48 @@
++#source: tlsopt4.s
++#source: tlslib.s
++#as: -a64
++#ld: -melf64ppc
++#objdump: -dr
++#target: powerpc64*-*-*
++
++.*: +file format elf64-powerpc
++
++Disassembly of section \.text:
++
++0+100000e8 <\.__tls_get_addr>:
++    100000e8:	4e 80 00 20 	blr
++
++Disassembly of section \.opt1:
++
++0+100000ec <\.opt1>:
++    100000ec:	3c 6d 00 00 	addis   r3,r13,0
++    100000f0:	2c 24 00 00 	cmpdi   r4,0
++    100000f4:	41 82 00 10 	beq-    .*
++    100000f8:	60 00 00 00 	nop
++    100000fc:	38 63 90 10 	addi    r3,r3,-28656
++    10000100:	48 00 00 0c 	b       .*
++    10000104:	60 00 00 00 	nop
++    10000108:	38 63 90 10 	addi    r3,r3,-28656
++
++Disassembly of section \.opt2:
++
++0+1000010c <\.opt2>:
++    1000010c:	3c 6d 00 00 	addis   r3,r13,0
++    10000110:	2c 24 00 00 	cmpdi   r4,0
++    10000114:	41 82 00 08 	beq-    .*
++    10000118:	3c 6d 00 00 	addis   r3,r13,0
++    1000011c:	60 00 00 00 	nop
++    10000120:	38 63 90 10 	addi    r3,r3,-28656
++
++Disassembly of section \.opt3:
++
++0+10000124 <\.opt3>:
++    10000124:	3c 6d 00 00 	addis   r3,r13,0
++    10000128:	48 00 00 0c 	b       .*
++    1000012c:	3c 6d 00 00 	addis   r3,r13,0
++    10000130:	48 00 00 10 	b       .*
++    10000134:	60 00 00 00 	nop
++    10000138:	38 63 90 10 	addi    r3,r3,-28656
++    1000013c:	48 00 00 0c 	b       .*
++    10000140:	60 00 00 00 	nop
++    10000144:	38 63 90 08 	addi    r3,r3,-28664
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt4.s b/ld/testsuite/ld-powerpc/tlsopt4.s
+--- a/ld/testsuite/ld-powerpc/tlsopt4.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt4.s	2012-05-08 12:04:00.857778818 -0600
+@@ -0,0 +1,39 @@
++ .section ".tbss","awT",@nobits
++ .global gd0
++ .align 3
++gd0: .space 8
++
++ .section ".opt1", "ax", %progbits
++ addi 3,2,gd@got@tlsgd
++ cmpdi 4,0
++ beq 0f
++ bl __tls_get_addr(gd@tlsgd)
++ nop
++ b 1f
++0:
++ bl __tls_get_addr(gd@tlsgd)
++ nop
++1:
++
++ .section ".opt2", "ax", %progbits
++ addi 3,2,gd@got@tlsgd
++ cmpdi 4,0
++ beq 0f
++ addi 3,2,gd@got@tlsgd
++0:
++ bl __tls_get_addr(gd@tlsgd)
++ nop
++
++ .section ".opt3", "ax", %progbits
++ addi 3,2,gd@got@tlsgd
++ b 0f
++ addi 3,2,gd0@got@tlsgd
++ b 1f
++0:
++ bl __tls_get_addr(gd@tlsgd)
++ nop
++ b 2f
++1:
++ bl __tls_get_addr(gd0@tlsgd)
++ nop
++2:
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt4_32.d b/ld/testsuite/ld-powerpc/tlsopt4_32.d
+--- a/ld/testsuite/ld-powerpc/tlsopt4_32.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt4_32.d	2012-05-08 12:03:52.420822561 -0600
+@@ -0,0 +1,44 @@
++#source: tlsopt4_32.s
++#source: tlslib32.s
++#as: -a32
++#ld: -melf32ppc
++#objdump: -dr
++#target: powerpc*-*-*
++
++.*: +file format elf32-powerpc
++
++Disassembly of section \.text:
++
++0+1800094 <__tls_get_addr>:
++ 1800094:	4e 80 00 20 	blr
++
++Disassembly of section \.opt1:
++
++0+1800098 <\.opt1>:
++ 1800098:	3c 62 00 00 	addis   r3,r2,0
++ 180009c:	2c 04 00 00 	cmpwi   r4,0
++ 18000a0:	41 82 00 0c 	beq-    .*
++ 18000a4:	38 63 90 10 	addi    r3,r3,-28656
++ 18000a8:	48 00 00 08 	b       .*
++ 18000ac:	38 63 90 10 	addi    r3,r3,-28656
++
++Disassembly of section \.opt2:
++
++0+18000b0 <\.opt2>:
++ 18000b0:	3c 62 00 00 	addis   r3,r2,0
++ 18000b4:	2c 04 00 00 	cmpwi   r4,0
++ 18000b8:	41 82 00 08 	beq-    .*
++ 18000bc:	3c 62 00 00 	addis   r3,r2,0
++ 18000c0:	38 63 90 10 	addi    r3,r3,-28656
++
++Disassembly of section \.opt3:
++
++0+18000c4 <\.opt3>:
++ 18000c4:	3c 62 00 00 	addis   r3,r2,0
++ 18000c8:	48 00 00 0c 	b       .*
++ 18000cc:	3c 62 00 00 	addis   r3,r2,0
++ 18000d0:	48 00 00 0c 	b       .*
++ 18000d4:	38 63 90 10 	addi    r3,r3,-28656
++ 18000d8:	48 00 00 08 	b       .*
++ 18000dc:	38 63 90 08 	addi    r3,r3,-28664
++#pass
+diff -Nrup a/ld/testsuite/ld-powerpc/tlsopt4_32.s b/ld/testsuite/ld-powerpc/tlsopt4_32.s
+--- a/ld/testsuite/ld-powerpc/tlsopt4_32.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tlsopt4_32.s	2012-05-08 12:03:52.420822561 -0600
+@@ -0,0 +1,34 @@
++ .section ".tbss","awT",@nobits
++ .global gd0
++ .align 3
++gd0: .space 8
++
++ .section ".opt1", "ax", %progbits
++ addi 3,13,gd@got@tlsgd
++ cmpwi 4,0
++ beq 0f
++ bl __tls_get_addr(gd@tlsgd)
++ b 1f
++0:
++ bl __tls_get_addr(gd@tlsgd)
++1:
++
++ .section ".opt2", "ax", %progbits
++ addi 3,13,gd@got@tlsgd
++ cmpwi 4,0
++ beq 0f
++ addi 3,13,gd@got@tlsgd
++0:
++ bl __tls_get_addr(gd@tlsgd)
++
++ .section ".opt3", "ax", %progbits
++ addi 3,13,gd@got@tlsgd
++ b 0f
++ addi 3,13,gd0@got@tlsgd
++ b 1f
++0:
++ bl __tls_get_addr(gd@tlsgd)
++ b 2f
++1:
++ bl __tls_get_addr(gd0@tlsgd)
++2:
+diff -Nrup a/ld/testsuite/ld-powerpc/tocopt5.d b/ld/testsuite/ld-powerpc/tocopt5.d
+--- a/ld/testsuite/ld-powerpc/tocopt5.d	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tocopt5.d	2012-05-08 12:04:04.041762309 -0600
+@@ -0,0 +1,13 @@
++
++.*:     file format .*
++
++Contents of section \.text:
++ 100000b0 60000000 e9228018 60000000 38a28020  .*
++ 100000c0 e8c50000 60000000 3922802b 60000000  .*
++ 100000d0 38a28008 e8c50000                    .*
++Contents of section \.got:
++ 100100d8 00000000 100180d8 00000000 10010104  .*
++ 100100e8 00000000 10010105 00000000 10010100  .*
++ 100100f8 00000000 10010101                    .*
++Contents of section \.sdata:
++ 10010100 01020304 0506                        .*
+diff -Nrup a/ld/testsuite/ld-powerpc/tocopt5.s b/ld/testsuite/ld-powerpc/tocopt5.s
+--- a/ld/testsuite/ld-powerpc/tocopt5.s	1969-12-31 17:00:00.000000000 -0700
++++ b/ld/testsuite/ld-powerpc/tocopt5.s	2012-05-08 12:04:04.041762309 -0600
+@@ -0,0 +1,43 @@
++ .section .toc,"aw"
++x4t:
++ .quad x4
++x5t:
++ .quad x5
++x6t:
++ .quad x6
++
++ .section .sdata,"aw"
++x1:
++ .byte 1
++x2:
++ .byte 2
++x3:
++ .byte 3
++x4:
++ .byte 4
++x5:
++ .byte 5
++x6:
++ .byte 6
++
++ .globl _start
++ .text
++_start:
++# no need for got entry, optimise to nop,addi
++# note: ld doesn't yet do got optimisation, so we get nop,ld
++ addis 9,2,x1@got@ha
++ ld 9,x1@got@l(9)
++# must keep got entry, optimise to nop,addi,ld
++ addis 4,2,x2@got@ha
++ addi 5,4,x2@got@l
++ ld 6,0(5)
++
++# no need for toc entry, optimise to nop,addi
++ addis 9,2,x4t@toc@ha
++ ld 9,x4t@toc@l(9)
++# must keep toc entry, optimise to nop,addi,ld
++# if we had a reloc tying the ld to x5/x5t then we could throw away
++# the toc entry and optimise to nop,nop,addi
++ addis 4,2,x5t@toc@ha
++ addi 5,4,x5t@toc@l
++ ld 6,0(5)

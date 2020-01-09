@@ -1,0 +1,1028 @@
+bfd/
+
+2007-07-03  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/4409
+	* elf-bfd.h (RELOC_FOR_GLOBAL_SYMBOL): Add an argument for
+	error ignored.
+	* elf-m10200.c (mn10200_elf_relocate_section): Updated.
+	* elf-m10300.c (mn10300_elf_relocate_section): Likewise.
+	* elf32-arm.c (elf32_arm_relocate_section): Likewise.
+	* elf32-avr.c (elf32_avr_relocate_section): Likewise.
+	* elf32-bfin.c (bfinfdpic_relocate_section): Likewise.
+	(bfin_relocate_section): Likewise.
+	* elf32-cr16.c (elf32_cr16_relocate_section): Likewise.
+	* elf32-cr16c.c (elf32_cr16c_relocate_section): Likewise.
+	* elf32-cris.c (cris_elf_relocate_section): Likewise.
+	* elf32-crx.c (elf32_crx_relocate_section): Likewise.
+	* elf32-d10v.c (elf32_d10v_relocate_section): Likewise.
+	* elf32-fr30.c (fr30_elf_relocate_section): Likewise.
+	* elf32-frv.c (elf32_frv_relocate_section): Likewise.
+	* elf32-h8300.c (elf32_h8_relocate_section): Likewise.
+	* elf32-hppa.c (elf32_hppa_relocate_section): Likewise.
+	* elf32-i386.c (elf_i386_relocate_section): Likewise.
+	* elf32-i860.c (elf32_i860_relocate_section): Likewise.
+	* elf32-ip2k.c (ip2k_elf_relocate_section): Likewise.
+	* elf32-iq2000.c (iq2000_elf_relocate_section): Likewise.
+	* elf32-lm32.c (lm32_elf_relocate_section): Likewise.
+	* elf32-m68hc1x.c (elf32_m68hc11_relocate_section): Likewise.
+	* elf32-m68k.c (elf_m68k_relocate_section): Likewise.
+	* elf32-microblaze.c (microblaze_elf_relocate_section): Likewise.
+	* elf32-mcore.c (mcore_elf_relocate_section): Likewise.
+	* elf32-mep.c (mep_elf_relocate_section): Likewise.
+	* elf32-moxie.c (moxie_elf_relocate_section): Likewise.
+	* elf32-msp430.c (elf32_msp430_relocate_section): Likewise.
+	* elf32-mt.c (mt_elf_relocate_section): Likewise.
+	* elf32-openrisc.c (openrisc_elf_relocate_section): Likewise.
+	* elf32-ppc.c (ppc_elf_relocate_section): Likewise.
+	* elf32-rx.c (rx_elf_relocate_section): Likewise.
+	* elf32-s390.c (elf_s390_relocate_section): Likewise.
+	* elf32-v850.c (v850_elf_relocate_section): Likewise.
+	* elf32-vax.c (elf_vax_relocate_section): Likewise.
+	* elf32-xc16x.c (elf32_xc16x_relocate_section): Likewise.
+	* elf32-xstormy16.c (xstormy16_elf_relocate_section): Likewise.
+	* elf32-xtensa.c (elf_xtensa_relocate_section): Likewise.
+	* elf64-alpha.c (elf64_alpha_relocate_section): Likewise.
+	* elf64-mmix.c (mmix_elf_relocate_section): Likewise.
+	* elf64-ppc.c (ppc64_elf_relocate_section): Likewise.
+	* elf64-s390.c (elf_s390_relocate_section): Likewise.
+	* elf64-x86-64.c (elf64_x86_64_relocate_section): Likewise.
+	* elfxx-sparc.c (_bfd_sparc_elf_relocate_section): Likewise.
+
+	* elfxx-ia64.c (elfNN_ia64_relocate_section): Skip if error
+	from RELOC_FOR_GLOBAL_SYMBOL in executable is ignored.
+
+ld/
+
+2007-07-03  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/4409
+	* ldmain.c (how_to_report_unresolved_symbols): New.
+	(main): Set link_info.unresolved_syms_in_objects and
+	link_info.unresolved_syms_in_shared_libs if they aren't set
+	yet.
+
+	* ldmain.h (how_to_report_unresolved_symbols): New.
+
+	* lexsup.c (how_to_report_unresolved_symbols): Removed.
+	(parse_args): Set link_info.pie to FALSE for -shared. Don't
+	set default values for link_info.unresolved_syms_in_objects nor
+	link_info.unresolved_syms_in_shared_libs.
+
+ld/testsuite/
+
+2007-07-03  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/4409
+	* ld-ia64/error1.d: New file.
+	* ld-ia64/error1.s: Likewise.
+	* ld-ia64/error2.d: Likewise.
+	* ld-ia64/error3.d: Likewise.
+	* ld-ia64/error4.d: Likewise.
+
+--- binutils/bfd/elf-bfd.h.error	2009-09-29 09:06:44.000000000 -0700
++++ binutils/bfd/elf-bfd.h	2009-09-29 09:06:44.000000000 -0700
+@@ -2257,7 +2257,7 @@ extern asection _bfd_elf_large_com_secti
+ #define RELOC_FOR_GLOBAL_SYMBOL(info, input_bfd, input_section, rel,	\
+ 				r_symndx, symtab_hdr, sym_hashes,	\
+ 				h, sec, relocation,			\
+-				unresolved_reloc, warned)		\
++				unresolved_reloc, warned, ignored)	\
+   do									\
+     {									\
+       /* It seems this can happen with erroneous or unsupported		\
+@@ -2272,6 +2272,7 @@ extern asection _bfd_elf_large_com_secti
+ 	h = (struct elf_link_hash_entry *) h->root.u.i.link;		\
+ 									\
+       warned = FALSE;							\
++      ignored = FALSE;							\
+       unresolved_reloc = FALSE;						\
+       relocation = 0;							\
+       if (h->root.type == bfd_link_hash_defined				\
+@@ -2294,7 +2295,7 @@ extern asection _bfd_elf_large_com_secti
+ 	;								\
+       else if (info->unresolved_syms_in_objects == RM_IGNORE		\
+ 	       && ELF_ST_VISIBILITY (h->other) == STV_DEFAULT)		\
+-	;								\
++	ignored = TRUE;							\
+       else if (!info->relocatable)					\
+ 	{								\
+ 	  bfd_boolean err;						\
+--- binutils/bfd/elf-m10200.c.error	2009-09-02 09:12:20.000000000 -0700
++++ binutils/bfd/elf-m10200.c	2009-09-29 09:06:44.000000000 -0700
+@@ -392,12 +392,12 @@ mn10200_elf_relocate_section (output_bfd
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf-m10300.c.error	2009-09-02 09:12:20.000000000 -0700
++++ binutils/bfd/elf-m10300.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1465,13 +1465,13 @@ mn10300_elf_relocate_section (bfd *outpu
+       else
+ 	{
+ 	  bfd_boolean unresolved_reloc;
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  struct elf_link_hash_entry *hh;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   hh, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  h = (struct elf32_mn10300_link_hash_entry *) hh;
+ 
+--- binutils/bfd/elf32-arm.c.error	2009-09-29 09:04:44.000000000 -0700
++++ binutils/bfd/elf32-arm.c	2009-09-29 09:06:44.000000000 -0700
+@@ -8898,12 +8898,12 @@ elf32_arm_relocate_section (bfd *       
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  sym_type = h->type;
+ 	}
+--- binutils/bfd/elf32-avr.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-avr.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1202,12 +1202,12 @@ elf32_avr_relocate_section (bfd *output_
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-bfin.c.error	2009-09-23 10:35:26.000000000 -0700
++++ binutils/bfd/elf32-bfin.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1419,12 +1419,12 @@ bfin_relocate_section (bfd * output_bfd,
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+@@ -2641,13 +2641,13 @@ bfinfdpic_relocate_section (bfd * output
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  bfd_boolean unresolved_reloc;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	  osec = sec;
+ 	}
+ 
+--- binutils/bfd/elf32-cr16.c.error	2009-09-29 09:04:44.000000000 -0700
++++ binutils/bfd/elf32-cr16.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1462,12 +1462,12 @@ elf32_cr16_relocate_section (bfd *output
+         }
+       else
+         {
+-          bfd_boolean unresolved_reloc, warned;
++          bfd_boolean unresolved_reloc, warned, ignored;
+ 
+           RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+                                    r_symndx, symtab_hdr, sym_hashes,
+                                    h, sec, relocation,
+-                                   unresolved_reloc, warned);
++                                   unresolved_reloc, warned, ignored);
+         }
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-cr16c.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-cr16c.c	2009-09-29 09:06:44.000000000 -0700
+@@ -718,12 +718,12 @@ elf32_cr16c_relocate_section (bfd *outpu
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-cris.c.error	2009-04-08 08:46:34.000000000 -0700
++++ binutils/bfd/elf32-cris.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1103,13 +1103,13 @@ cris_elf_relocate_section (output_bfd, i
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  bfd_boolean unresolved_reloc;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  symname = h->root.root.string;
+ 
+--- binutils/bfd/elf32-crx.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-crx.c	2009-09-29 09:06:44.000000000 -0700
+@@ -869,12 +869,12 @@ elf32_crx_relocate_section (bfd *output_
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-d10v.c.error	2007-10-30 11:48:32.000000000 -0700
++++ binutils/bfd/elf32-d10v.c	2009-09-29 09:06:44.000000000 -0700
+@@ -455,12 +455,12 @@ elf32_d10v_relocate_section (bfd *output
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-fr30.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-fr30.c	2009-09-29 09:06:44.000000000 -0700
+@@ -567,12 +567,12 @@ fr30_elf_relocate_section (output_bfd, i
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-frv.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-frv.c	2009-09-29 09:06:44.000000000 -0700
+@@ -2798,13 +2798,13 @@ elf32_frv_relocate_section (output_bfd, 
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  bfd_boolean unresolved_reloc;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	  osec = sec;
+ 	}
+ 
+--- binutils/bfd/elf32-h8300.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-h8300.c	2009-09-29 09:06:44.000000000 -0700
+@@ -452,12 +452,12 @@ elf32_h8_relocate_section (bfd *output_b
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-hppa.c.error	2009-06-22 09:38:40.000000000 -0700
++++ binutils/bfd/elf32-hppa.c	2009-09-29 09:06:44.000000000 -0700
+@@ -3669,13 +3669,14 @@ elf32_hppa_relocate_section (bfd *output
+       else
+ 	{
+ 	  struct elf_link_hash_entry *eh;
+-	  bfd_boolean unresolved_reloc;
++	  bfd_boolean unresolved_reloc, ignored;
+ 	  struct elf_link_hash_entry **sym_hashes = elf_sym_hashes (input_bfd);
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rela,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   eh, sym_sec, relocation,
+-				   unresolved_reloc, warned_undef);
++				   unresolved_reloc, warned_undef,
++				   ignored);
+ 
+ 	  if (!info->relocatable
+ 	      && relocation == 0
+--- binutils/bfd/elf32-i386.c.error	2009-09-29 09:06:44.000000000 -0700
++++ binutils/bfd/elf32-i386.c	2009-09-29 09:06:44.000000000 -0700
+@@ -2930,12 +2930,12 @@ elf_i386_relocate_section (bfd *output_b
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-i860.c.error	2007-10-30 11:48:33.000000000 -0700
++++ binutils/bfd/elf32-i860.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1120,12 +1120,12 @@ elf32_i860_relocate_section (bfd *output
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-ip2k.c.error	2007-10-30 11:48:33.000000000 -0700
++++ binutils/bfd/elf32-ip2k.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1449,13 +1449,13 @@ ip2k_elf_relocate_section (bfd *output_b
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  bfd_boolean unresolved_reloc;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-iq2000.c.error	2008-08-12 07:24:02.000000000 -0700
++++ binutils/bfd/elf32-iq2000.c	2009-09-29 09:06:44.000000000 -0700
+@@ -623,12 +623,12 @@ iq2000_elf_relocate_section (bfd *		    
+       else
+ 	{
+ 	  bfd_boolean unresolved_reloc;
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-lm32.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-lm32.c	2009-09-29 09:06:44.000000000 -0700
+@@ -877,12 +877,12 @@ lm32_elf_relocate_section (bfd *output_b
+         {
+           /* It's a global symbol.  */
+           bfd_boolean unresolved_reloc;
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	  osec = sec;
+ 	  name = h->root.root.string;
+         }
+--- binutils/bfd/elf32-m68hc1x.c.error	2009-06-22 09:38:40.000000000 -0700
++++ binutils/bfd/elf32-m68hc1x.c	2009-09-29 09:06:44.000000000 -0700
+@@ -948,12 +948,12 @@ elf32_m68hc11_relocate_section (bfd *out
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation, unresolved_reloc,
+-				   warned);
++				   warned, ignored);
+ 
+ 	  is_far = (h && (h->other & STO_M68HC12_FAR));
+ 	  stub_name = h->root.root.string;
+--- binutils/bfd/elf32-m68k.c.error	2009-09-29 09:04:44.000000000 -0700
++++ binutils/bfd/elf32-m68k.c	2009-09-29 09:06:44.000000000 -0700
+@@ -3708,12 +3708,12 @@ elf_m68k_relocate_section (output_bfd, i
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-mcore.c.error	2007-10-30 11:48:33.000000000 -0700
++++ binutils/bfd/elf32-mcore.c	2009-09-29 09:06:44.000000000 -0700
+@@ -458,12 +458,12 @@ mcore_elf_relocate_section (bfd * output
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-mep.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-mep.c	2009-09-29 09:06:44.000000000 -0700
+@@ -489,12 +489,12 @@ mep_elf_relocate_section
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned, unresolved_reloc;
++	  bfd_boolean warned, unresolved_reloc, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL(info, input_bfd, input_section, rel,
+ 				  r_symndx, symtab_hdr, sym_hashes,
+ 				  h, sec, relocation,
+-				  unresolved_reloc, warned);
++				  unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-microblaze.c.error	2009-08-07 10:10:43.000000000 -0700
++++ binutils/bfd/elf32-microblaze.c	2009-09-29 09:19:55.000000000 -0700
+@@ -810,11 +810,12 @@ microblaze_elf_relocate_section (bfd *ou
+ 	    {
+ 	      /* External symbol.  */
+ 	      bfd_boolean warned ATTRIBUTE_UNUSED;
++	      bfd_boolean ignored ATTRIBUTE_UNUSED;
+ 
+ 	      RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				       r_symndx, symtab_hdr, sym_hashes,
+ 				       h, sec, relocation,
+-				       unresolved_reloc, warned);
++				       unresolved_reloc, warned, ignored);
+ 	      sym_name = h->root.root.string;
+ 	    }
+ 
+--- binutils/bfd/elf32-moxie.c.error	2009-06-22 09:38:40.000000000 -0700
++++ binutils/bfd/elf32-moxie.c	2009-09-29 09:20:35.000000000 -0700
+@@ -242,12 +242,12 @@ moxie_elf_relocate_section (bfd *output_
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-msp430.c.error	2007-10-30 11:48:33.000000000 -0700
++++ binutils/bfd/elf32-msp430.c	2009-09-29 09:06:44.000000000 -0700
+@@ -446,12 +446,12 @@ elf32_msp430_relocate_section (bfd * out
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-mt.c.error	2008-08-12 07:24:02.000000000 -0700
++++ binutils/bfd/elf32-mt.c	2009-09-29 09:06:44.000000000 -0700
+@@ -344,12 +344,12 @@ mt_elf_relocate_section
+       else
+ 	{
+ 	  bfd_boolean unresolved_reloc;
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-openrisc.c.error	2007-10-30 11:48:33.000000000 -0700
++++ binutils/bfd/elf32-openrisc.c	2009-09-29 09:06:44.000000000 -0700
+@@ -365,12 +365,12 @@ openrisc_elf_relocate_section (bfd *outp
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-ppc.c.error	2009-09-23 10:35:27.000000000 -0700
++++ binutils/bfd/elf32-ppc.c	2009-09-29 09:06:44.000000000 -0700
+@@ -6726,10 +6726,12 @@ ppc_elf_relocate_section (bfd *output_bf
+ 	}
+       else
+ 	{
++	  bfd_boolean ignored;
++
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  sym_name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-rx.c.error	2009-09-29 07:17:03.000000000 -0700
++++ binutils/bfd/elf32-rx.c	2009-09-29 09:21:03.000000000 -0700
+@@ -499,12 +499,12 @@ rx_elf_relocate_section
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes, h,
+ 				   sec, relocation, unresolved_reloc,
+-				   warned);
++				   warned, ignored);
+ 
+ 	  name = h->root.root.string;
+ 	}
+--- binutils/bfd/elf32-s390.c.error	2009-09-02 09:12:24.000000000 -0700
++++ binutils/bfd/elf32-s390.c	2009-09-29 09:06:44.000000000 -0700
+@@ -2282,11 +2282,12 @@ elf_s390_relocate_section (output_bfd, i
+       else
+ 	{
+ 	  bfd_boolean warned ATTRIBUTE_UNUSED;
++	  bfd_boolean ignored ATTRIBUTE_UNUSED;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-v850.c.error	2009-09-02 09:12:26.000000000 -0700
++++ binutils/bfd/elf32-v850.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1624,7 +1624,7 @@ v850_elf_relocate_section (bfd *output_b
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  /* Note - this check is delayed until now as it is possible and
+ 	     valid to have a file without any symbols but with relocs that
+@@ -1641,7 +1641,7 @@ v850_elf_relocate_section (bfd *output_b
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-vax.c.error	2009-09-02 09:12:26.000000000 -0700
++++ binutils/bfd/elf32-vax.c	2009-09-29 09:06:44.000000000 -0700
+@@ -1426,12 +1426,12 @@ elf_vax_relocate_section (bfd *output_bf
+       else
+ 	{
+ 	  bfd_boolean unresolved_reloc;
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  if ((h->root.type == bfd_link_hash_defined
+ 	      || h->root.type == bfd_link_hash_defweak)
+--- binutils/bfd/elf32-xc16x.c.error	2009-09-02 09:12:26.000000000 -0700
++++ binutils/bfd/elf32-xc16x.c	2009-09-29 09:06:44.000000000 -0700
+@@ -374,12 +374,12 @@ elf32_xc16x_relocate_section (bfd *outpu
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-xstormy16.c.error	2007-10-30 11:48:33.000000000 -0700
++++ binutils/bfd/elf32-xstormy16.c	2009-09-29 09:06:44.000000000 -0700
+@@ -823,12 +823,12 @@ xstormy16_elf_relocate_section (bfd *   
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc, warned;
++	  bfd_boolean unresolved_reloc, warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf32-xtensa.c.error	2009-09-11 12:08:11.000000000 -0700
++++ binutils/bfd/elf32-xtensa.c	2009-09-29 09:06:44.000000000 -0700
+@@ -2621,10 +2621,12 @@ elf_xtensa_relocate_section (bfd *output
+ 	}
+       else
+ 	{
++	  bfd_boolean ignored;
++
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  if (relocation == 0
+ 	      && !unresolved_reloc
+--- binutils/bfd/elf64-alpha.c.error	2009-09-29 09:04:44.000000000 -0700
++++ binutils/bfd/elf64-alpha.c	2009-09-29 09:06:44.000000000 -0700
+@@ -4175,7 +4175,7 @@ elf64_alpha_relocate_section (bfd *outpu
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  bfd_boolean unresolved_reloc;
+ 	  struct elf_link_hash_entry *hh;
+ 	  struct elf_link_hash_entry **sym_hashes = elf_sym_hashes (input_bfd);
+@@ -4183,7 +4183,7 @@ elf64_alpha_relocate_section (bfd *outpu
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   hh, sec, value,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  if (warned)
+ 	    continue;
+--- binutils/bfd/elf64-mmix.c.error	2009-09-02 09:12:26.000000000 -0700
++++ binutils/bfd/elf64-mmix.c	2009-09-29 09:06:45.000000000 -0700
+@@ -1402,12 +1402,13 @@ mmix_elf_relocate_section (output_bfd, i
+ 	}
+       else
+ 	{
+-	  bfd_boolean unresolved_reloc;
++	  bfd_boolean unresolved_reloc, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, undefined_signalled);
++				   unresolved_reloc, undefined_signalled,
++				   ignored);
+ 	  name = h->root.root.string;
+ 	}
+ 
+--- binutils/bfd/elf64-ppc.c.error	2009-09-23 10:35:27.000000000 -0700
++++ binutils/bfd/elf64-ppc.c	2009-09-29 09:06:45.000000000 -0700
+@@ -10840,10 +10840,12 @@ ppc64_elf_relocate_section (bfd *output_
+ 	}
+       else
+ 	{
++	  bfd_boolean ignored;
++
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h_elf, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	  sym_name = h_elf->root.root.string;
+ 	  sym_type = h_elf->type;
+ 	}
+--- binutils/bfd/elf64-s390.c.error	2009-09-02 09:12:26.000000000 -0700
++++ binutils/bfd/elf64-s390.c	2009-09-29 09:06:45.000000000 -0700
+@@ -2254,11 +2254,12 @@ elf_s390_relocate_section (output_bfd, i
+       else
+ 	{
+ 	  bfd_boolean warned ATTRIBUTE_UNUSED;
++	  bfd_boolean ignored ATTRIBUTE_UNUSED;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elf64-x86-64.c.error	2009-09-29 09:06:44.000000000 -0700
++++ binutils/bfd/elf64-x86-64.c	2009-09-29 09:06:45.000000000 -0700
+@@ -2659,12 +2659,12 @@ elf64_x86_64_relocate_section (bfd *outp
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+--- binutils/bfd/elfxx-ia64.c.error	2009-09-29 09:06:44.000000000 -0700
++++ binutils/bfd/elfxx-ia64.c	2009-09-29 09:06:45.000000000 -0700
+@@ -4529,17 +4529,17 @@ elfNN_ia64_relocate_section (bfd *output
+       else
+ 	{
+ 	  bfd_boolean unresolved_reloc;
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 	  struct elf_link_hash_entry **sym_hashes = elf_sym_hashes (input_bfd);
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sym_sec, value,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 
+ 	  if (h->root.type == bfd_link_hash_undefweak)
+ 	    undef_weak_ref = TRUE;
+-	  else if (warned)
++	  else if (warned || (ignored && info->executable))
+ 	    continue;
+ 	}
+ 
+--- binutils/bfd/elfxx-sparc.c.error	2009-09-02 09:12:27.000000000 -0700
++++ binutils/bfd/elfxx-sparc.c	2009-09-29 09:06:45.000000000 -0700
+@@ -2571,12 +2571,12 @@ _bfd_sparc_elf_relocate_section (bfd *ou
+ 	}
+       else
+ 	{
+-	  bfd_boolean warned;
++	  bfd_boolean warned, ignored;
+ 
+ 	  RELOC_FOR_GLOBAL_SYMBOL (info, input_bfd, input_section, rel,
+ 				   r_symndx, symtab_hdr, sym_hashes,
+ 				   h, sec, relocation,
+-				   unresolved_reloc, warned);
++				   unresolved_reloc, warned, ignored);
+ 	  if (warned)
+ 	    {
+ 	      /* To avoid generating warning messages about truncated
+--- binutils/ld/ldmain.c.error	2009-09-29 09:06:44.000000000 -0700
++++ binutils/ld/ldmain.c	2009-09-29 09:06:45.000000000 -0700
+@@ -104,6 +104,9 @@ bfd_boolean add_needed = TRUE;
+ /* TRUE if we should demangle symbol names.  */
+ bfd_boolean demangling;
+ 
++/* How to report unresolved symbols.  */
++enum report_method how_to_report_unresolved_symbols = RM_GENERATE_ERROR;
++
+ args_type command_line;
+ 
+ ld_config_type config;
+@@ -388,6 +391,27 @@ main (int argc, char **argv)
+   if (! link_info.shared || link_info.pie)
+     link_info.executable = TRUE;
+ 
++  /* When creating a shared library, the default behaviour is to
++     ignore any unresolved references.  */
++
++  if (link_info.unresolved_syms_in_objects == RM_NOT_YET_SET)
++    {
++      if (link_info.shared && !link_info.pie)
++	link_info.unresolved_syms_in_objects = RM_IGNORE;
++      else
++	link_info.unresolved_syms_in_objects
++	  = how_to_report_unresolved_symbols;
++    }
++
++  if (link_info.unresolved_syms_in_shared_libs == RM_NOT_YET_SET)
++    {
++      if (link_info.shared && !link_info.pie)
++	link_info.unresolved_syms_in_shared_libs = RM_IGNORE;
++      else
++	link_info.unresolved_syms_in_shared_libs
++	  = how_to_report_unresolved_symbols;
++    }
++
+   /* Treat ld -r -s as ld -r -S -x (i.e., strip all local symbols).  I
+      don't see how else this can be handled, since in this case we
+      must preserve all externally visible symbols.  */
+--- binutils/ld/ldmain.h.error	2008-02-15 09:03:46.000000000 -0800
++++ binutils/ld/ldmain.h	2009-09-29 09:06:45.000000000 -0700
+@@ -37,6 +37,7 @@ extern bfd_boolean whole_archive;
+ extern bfd_boolean as_needed;
+ extern bfd_boolean add_needed;
+ extern bfd_boolean demangling;
++extern enum report_method how_to_report_unresolved_symbols;
+ extern int g_switch_value;
+ extern const char *output_filename;
+ extern struct bfd_link_info link_info;
+--- binutils/ld/lexsup.c.error	2009-09-23 10:35:29.000000000 -0700
++++ binutils/ld/lexsup.c	2009-09-29 09:06:45.000000000 -0700
+@@ -590,7 +590,6 @@ parse_args (unsigned argc, char **argv)
+   struct option *longopts;
+   struct option *really_longopts;
+   int last_optind;
+-  enum report_method how_to_report_unresolved_symbols = RM_GENERATE_ERROR;
+ 
+   shortopts = (char *) xmalloc (OPTION_COUNT * 3 + 2);
+   longopts = (struct option *)
+@@ -1142,12 +1141,7 @@ parse_args (unsigned argc, char **argv)
+ 	  if (config.has_shared)
+ 	    {
+ 	      link_info.shared = TRUE;
+-	      /* When creating a shared library, the default
+-		 behaviour is to ignore any unresolved references.  */
+-	      if (link_info.unresolved_syms_in_objects == RM_NOT_YET_SET)
+-		link_info.unresolved_syms_in_objects = RM_IGNORE;
+-	      if (link_info.unresolved_syms_in_shared_libs == RM_NOT_YET_SET)
+-		link_info.unresolved_syms_in_shared_libs = RM_IGNORE;
++	      link_info.pie = FALSE;
+ 	    }
+ 	  else
+ 	    einfo (_("%P%F: -shared not supported\n"));
+@@ -1491,14 +1485,6 @@ parse_args (unsigned argc, char **argv)
+       set_default_dirlist (default_dirlist);
+       free (default_dirlist);
+     }
+-
+-  if (link_info.unresolved_syms_in_objects == RM_NOT_YET_SET)
+-    /* FIXME: Should we allow emulations a chance to set this ?  */
+-    link_info.unresolved_syms_in_objects = how_to_report_unresolved_symbols;
+-
+-  if (link_info.unresolved_syms_in_shared_libs == RM_NOT_YET_SET)
+-    /* FIXME: Should we allow emulations a chance to set this ?  */
+-    link_info.unresolved_syms_in_shared_libs = how_to_report_unresolved_symbols;
+ }
+ 
+ /* Add the (colon-separated) elements of DIRLIST_PTR to the
+--- binutils/ld/testsuite/ld-ia64/error1.d.error	2009-09-29 09:06:45.000000000 -0700
++++ binutils/ld/testsuite/ld-ia64/error1.d	2009-09-29 09:06:45.000000000 -0700
+@@ -0,0 +1,7 @@
++#source: error1.s
++#ld: -unresolved-symbols=ignore-all
++#readelf: -s
++
++#...
++[ 	]+[0-9]+:[ 	]+[0]+[ 	]+0[ 	]+NOTYPE[ 	]+GLOBAL DEFAULT[ 	]+UND[ 	]+foo
++#pass
+--- binutils/ld/testsuite/ld-ia64/error1.s.error	2009-09-29 09:06:45.000000000 -0700
++++ binutils/ld/testsuite/ld-ia64/error1.s	2009-09-29 09:06:45.000000000 -0700
+@@ -0,0 +1,30 @@
++	.explicit
++	.pred.safe_across_calls p1-p5,p16-p63
++	.text
++	.align 16
++	.global _start#
++	.proc _start#
++_start:
++	.prologue 12, 32
++	.mii
++	.save ar.pfs, r33
++	alloc r33 = ar.pfs, 0, 3, 0, 0
++	.save rp, r32
++	mov r32 = b0
++	mov r34 = r1
++	.body
++	;;
++	.bbb
++	nop 0
++	nop 0
++	br.call.sptk.many b0 = foo#
++	;;
++	.mmi
++	nop 0
++	mov r1 = r34
++	mov b0 = r32
++	.mib
++	nop 0
++	mov ar.pfs = r33
++	br.ret.sptk.many b0
++	.endp _start#
+--- binutils/ld/testsuite/ld-ia64/error2.d.error	2009-09-29 09:06:45.000000000 -0700
++++ binutils/ld/testsuite/ld-ia64/error2.d	2009-09-29 09:06:45.000000000 -0700
+@@ -0,0 +1,7 @@
++#source: error1.s
++#ld: -pie -unresolved-symbols=ignore-all
++#readelf: -s
++
++#...
++[ 	]+[0-9]+:[ 	]+[0]+[ 	]+0[ 	]+NOTYPE[ 	]+GLOBAL DEFAULT[ 	]+UND[ 	]+foo
++#pass
+--- binutils/ld/testsuite/ld-ia64/error3.d.error	2009-09-29 09:06:45.000000000 -0700
++++ binutils/ld/testsuite/ld-ia64/error3.d	2009-09-29 09:06:45.000000000 -0700
+@@ -0,0 +1,7 @@
++#source: error1.s
++#ld: -pie -shared
++#readelf: -s
++
++#...
++[ 	]+[0-9]+:[ 	]+[0]+[ 	]+0[ 	]+NOTYPE[ 	]+GLOBAL DEFAULT[ 	]+UND[ 	]+foo
++#pass
+--- binutils/ld/testsuite/ld-ia64/error4.d.error	2009-09-29 09:06:45.000000000 -0700
++++ binutils/ld/testsuite/ld-ia64/error4.d	2009-09-29 09:06:45.000000000 -0700
+@@ -0,0 +1,3 @@
++#source: error1.s
++#ld: -shared -pie
++#error: .*undefined reference to `foo'

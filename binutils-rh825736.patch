@@ -1,0 +1,115 @@
+*** old/bfd/elf.c	2012-08-10 09:57:30.162289725 +0100
+--- bfd/elf.c	2012-08-10 09:51:12.980279269 +0100
+*************** _bfd_elf_map_sections_to_segments (bfd *
+*** 4087,4101 ****
+  	{
+  	  for (m = mfirst; m != NULL; m = m->next)
+  	    {
+! 	      if (m->p_type == PT_LOAD)
+! 		{
+! 		  asection *last = m->sections[m->count - 1];
+! 		  bfd_vma vaddr = m->sections[0]->vma;
+! 		  bfd_vma filesz = last->vma - vaddr + last->size;
+! 
+! 		  if (vaddr < info->relro_end
+! 		      && vaddr >= info->relro_start
+! 		      && (vaddr + filesz) >= info->relro_end)
+  		    break;
+  		}
+  	      }
+--- 4087,4108 ----
+  	{
+  	  for (m = mfirst; m != NULL; m = m->next)
+  	    {
+! 	      if (m->p_type == PT_LOAD
+! 		  && m->count != 0
+! 		  && m->sections[0]->vma >= info->relro_start
+! 		  && m->sections[0]->vma < info->relro_end)
+! 		{
+! 		  i = m->count;
+! 		  while (--i != (unsigned) -1)
+! 		    if ((m->sections[i]->flags & (SEC_LOAD | SEC_HAS_CONTENTS))
+! 			== (SEC_LOAD | SEC_HAS_CONTENTS))
+! 		      break;
+! 
+! 		  if (i == (unsigned) -1)
+! 		    continue;
+! 
+! 		  if (m->sections[i]->vma + m->sections[i]->size
+! 		      >= info->relro_end)
+  		    break;
+  		}
+  	      }
+*************** assign_file_positions_for_load_sections
+*** 4475,4482 ****
+  	  p->p_memsz = bed->s->sizeof_ehdr;
+  	  if (m->count > 0)
+  	    {
+- 	      BFD_ASSERT (p->p_type == PT_LOAD);
+- 
+  	      if (p->p_vaddr < (bfd_vma) off)
+  		{
+  		  (*_bfd_error_handler)
+--- 4482,4487 ----
+*************** assign_file_positions_for_load_sections
+*** 4503,4509 ****
+  
+  	      if (m->count > 0)
+  		{
+- 		  BFD_ASSERT (p->p_type == PT_LOAD);
+  		  p->p_vaddr -= off - p->p_offset;
+  		  if (!m->p_paddr_valid)
+  		    p->p_paddr -= off - p->p_offset;
+--- 4508,4513 ----
+*************** assign_file_positions_for_non_load_secti
+*** 4803,4823 ****
+        if (p->p_type == PT_GNU_RELRO)
+  	{
+  	  const Elf_Internal_Phdr *lp;
+! 
+! 	  BFD_ASSERT (!m->includes_filehdr && !m->includes_phdrs);
+  
+  	  if (link_info != NULL)
+  	    {
+  	      /* During linking the range of the RELRO segment is passed
+  		 in link_info.  */
+! 	      for (lp = phdrs; lp < phdrs + count; ++lp)
+  		{
+  		  if (lp->p_type == PT_LOAD
+- 		      && lp->p_vaddr >= link_info->relro_start
+  		      && lp->p_vaddr < link_info->relro_end
+! 		      && lp->p_vaddr + lp->p_filesz >= link_info->relro_end)
+  		    break;
+  		}
+  	    }
+  	  else
+  	    {
+--- 4807,4834 ----
+        if (p->p_type == PT_GNU_RELRO)
+  	{
+  	  const Elf_Internal_Phdr *lp;
+! 	  struct elf_segment_map *lm;
+  
+  	  if (link_info != NULL)
+  	    {
+  	      /* During linking the range of the RELRO segment is passed
+  		 in link_info.  */
+! 	      for (lm = elf_tdata (abfd)->segment_map, lp = phdrs;
+! 		   lm != NULL;
+! 		   lm = lm->next, lp++)
+  		{
+  		  if (lp->p_type == PT_LOAD
+  		      && lp->p_vaddr < link_info->relro_end
+! 		      && lp->p_vaddr + lp->p_filesz >= link_info->relro_end
+! 		      && lm->count != 0
+! 		      && lm->sections[0]->vma >= link_info->relro_start)
+! 
+  		    break;
+  		}
++ 
++ 	      /* PR ld/14207.  If the RELRO segment doesn't fit in the
++ 		 LOAD segment, it should be removed.  */
++ 	      BFD_ASSERT (lm != NULL);
+  	    }
+  	  else
+  	    {

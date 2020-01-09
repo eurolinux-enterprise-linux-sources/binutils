@@ -1,0 +1,3407 @@
+diff -rcp ../binutils-2.20.51.0.2.orig/bfd/bfd-in2.h ./bfd/bfd-in2.h
+*** ../binutils-2.20.51.0.2.orig/bfd/bfd-in2.h	2012-04-26 22:03:49.359411210 +0930
+--- ./bfd/bfd-in2.h	2012-04-26 21:17:44.779345497 +0930
+*************** typedef struct bfd_section *sec_ptr;
+*** 301,307 ****
+    (((sec)->rawsize ? (sec)->rawsize : (sec)->size) \
+     / bfd_octets_per_byte (bfd))
+  
+! /* Return TRUE if section has been discarded.  */
+  #define elf_discarded_section(sec)				\
+    (!bfd_is_abs_section (sec)					\
+     && bfd_is_abs_section ((sec)->output_section)		\
+--- 301,307 ----
+    (((sec)->rawsize ? (sec)->rawsize : (sec)->size) \
+     / bfd_octets_per_byte (bfd))
+  
+! /* Return TRUE if input section SEC has been discarded.  */
+  #define elf_discarded_section(sec)				\
+    (!bfd_is_abs_section (sec)					\
+     && bfd_is_abs_section ((sec)->output_section)		\
+*************** struct reloc_howto_struct
+*** 2242,2251 ****
+        when doing overflow checking.  */
+    unsigned int bitsize;
+  
+!   /*  Notes that the relocation is relative to the location in the
+!       data section of the addend.  The relocation function will
+!       subtract from the relocation value the address of the location
+!       being relocated.  */
+    bfd_boolean pc_relative;
+  
+    /*  The bit position of the reloc value in the destination.
+--- 2242,2248 ----
+        when doing overflow checking.  */
+    unsigned int bitsize;
+  
+!   /*  The relocation is relative to the field being relocated.  */
+    bfd_boolean pc_relative;
+  
+    /*  The bit position of the reloc value in the destination.
+diff -rcp ../binutils-2.20.51.0.2.orig/bfd/bfd-in.h ./bfd/bfd-in.h
+*** ../binutils-2.20.51.0.2.orig/bfd/bfd-in.h	2012-04-26 22:03:49.363568836 +0930
+--- ./bfd/bfd-in.h	2012-04-26 21:17:44.779345497 +0930
+*************** typedef struct bfd_section *sec_ptr;
+*** 294,300 ****
+    (((sec)->rawsize ? (sec)->rawsize : (sec)->size) \
+     / bfd_octets_per_byte (bfd))
+  
+! /* Return TRUE if section has been discarded.  */
+  #define elf_discarded_section(sec)				\
+    (!bfd_is_abs_section (sec)					\
+     && bfd_is_abs_section ((sec)->output_section)		\
+--- 294,300 ----
+    (((sec)->rawsize ? (sec)->rawsize : (sec)->size) \
+     / bfd_octets_per_byte (bfd))
+  
+! /* Return TRUE if input section SEC has been discarded.  */
+  #define elf_discarded_section(sec)				\
+    (!bfd_is_abs_section (sec)					\
+     && bfd_is_abs_section ((sec)->output_section)		\
+diff -rcp ../binutils-2.20.51.0.2.orig/bfd/elf32-ppc.c ./bfd/elf32-ppc.c
+*** ../binutils-2.20.51.0.2.orig/bfd/elf32-ppc.c	2012-04-26 22:03:49.363568836 +0930
+--- ./bfd/elf32-ppc.c	2012-04-26 21:23:20.031852167 +0930
+*************** static reloc_howto_type ppc_elf_howto_ra
+*** 1380,1386 ****
+  	 0,			/* rightshift */
+  	 1,			/* size (0 = byte, 1 = short, 2 = long) */
+  	 16,			/* bitsize */
+! 	 TRUE,			/* pc_relative */
+  	 0,			/* bitpos */
+  	 complain_overflow_signed, /* complain_on_overflow */
+  	 bfd_elf_generic_reloc,	/* special_function */
+--- 1380,1386 ----
+  	 0,			/* rightshift */
+  	 1,			/* size (0 = byte, 1 = short, 2 = long) */
+  	 16,			/* bitsize */
+! 	 FALSE,			/* pc_relative */
+  	 0,			/* bitpos */
+  	 complain_overflow_signed, /* complain_on_overflow */
+  	 bfd_elf_generic_reloc,	/* special_function */
+*************** ppc_elf_link_hash_newfunc (struct bfd_ha
+*** 2818,2823 ****
+--- 2818,2824 ----
+        ppc_elf_hash_entry (entry)->linker_section_pointer = NULL;
+        ppc_elf_hash_entry (entry)->dyn_relocs = NULL;
+        ppc_elf_hash_entry (entry)->tls_mask = 0;
++       ppc_elf_hash_entry (entry)->has_sda_refs = 0;
+      }
+  
+    return entry;
+*************** ppc_elf_select_plt_layout (bfd *output_b
+*** 4303,4310 ****
+--- 4304,4330 ----
+  
+    if (htab->plt_type == PLT_UNSET)
+      {
++       struct elf_link_hash_entry *h;
++ 
+        if (plt_style == PLT_OLD)
+  	htab->plt_type = PLT_OLD;
++       else if (info->shared
++ 	       && htab->elf.dynamic_sections_created
++ 	       && (h = elf_link_hash_lookup (&htab->elf, "_mcount",
++ 					     FALSE, FALSE, TRUE)) != NULL
++ 	       && (h->type == STT_FUNC
++ 		   || h->needs_plt)
++ 	       && h->ref_regular
++ 	       && !(SYMBOL_CALLS_LOCAL (info, h)
++ 		    || (ELF_ST_VISIBILITY (h->other) != STV_DEFAULT
++ 			&& h->root.type == bfd_link_hash_undefweak)))
++ 	{
++ 	  /* Profiling of shared libs (and pies) is not supported with
++ 	     secure plt, because ppc32 does profiling before a
++ 	     function prologue and a secure plt pic call stubs needs
++ 	     r30 to be set up.  */
++ 	  htab->plt_type = PLT_OLD;
++ 	}
+        else
+  	{
+  	  bfd *ibfd;
+*************** ppc_elf_select_plt_layout (bfd *output_b
+*** 4332,4338 ****
+  	}
+      }
+    if (htab->plt_type == PLT_OLD && plt_style == PLT_NEW)
+!     info->callbacks->info (_("Using bss-plt due to %B"), htab->old_bfd);
+  
+    BFD_ASSERT (htab->plt_type != PLT_VXWORKS);
+  
+--- 4352,4364 ----
+  	}
+      }
+    if (htab->plt_type == PLT_OLD && plt_style == PLT_NEW)
+!     {
+!       if (htab->old_bfd != NULL)
+! 	info->callbacks->info (_("%P: bss-plt forced due to %B\n"),
+! 				htab->old_bfd);
+!       else
+! 	info->callbacks->info (_("%P: bss-plt forced by profiling\n"));
+!     }
+  
+    BFD_ASSERT (htab->plt_type != PLT_VXWORKS);
+  
+*************** ppc_elf_tls_optimize (bfd *obfd ATTRIBUT
+*** 4672,4681 ****
+      return TRUE;
+  
+    htab = ppc_elf_hash_table (info);
+    /* Make two passes through the relocs.  First time check that tls
+       relocs involved in setting up a tls_get_addr call are indeed
+!      followed by such a call.  If they are not, exclude them from
+!      the optimizations done on the second pass.  */
+    for (pass = 0; pass < 2; ++pass)
+      for (ibfd = info->input_bfds; ibfd != NULL; ibfd = ibfd->link_next)
+        {
+--- 4698,4712 ----
+      return TRUE;
+  
+    htab = ppc_elf_hash_table (info);
++   if (htab == NULL)
++     return FALSE;
++ 
+    /* Make two passes through the relocs.  First time check that tls
+       relocs involved in setting up a tls_get_addr call are indeed
+!      followed by such a call.  If they are not, don't do any tls
+!      optimization.  On the second pass twiddle tls_mask flags to
+!      notify relocate_section that optimization can be done, and
+!      adjust got and plt refcounts.  */
+    for (pass = 0; pass < 2; ++pass)
+      for (ibfd = info->input_bfds; ibfd != NULL; ibfd = ibfd->link_next)
+        {
+*************** ppc_elf_tls_optimize (bfd *obfd ATTRIBUT
+*** 4687,4692 ****
+--- 4718,4724 ----
+  	  if (sec->has_tls_reloc && !bfd_is_abs_section (sec->output_section))
+  	    {
+  	      Elf_Internal_Rela *relstart, *rel, *relend;
++ 	      int expecting_tls_get_addr = 0;
+  
+  	      /* Read the relocations.  */
+  	      relstart = _bfd_elf_link_read_relocs (ibfd, sec, NULL, NULL,
+*************** ppc_elf_tls_optimize (bfd *obfd ATTRIBUT
+*** 4703,4709 ****
+  		  char *tls_mask;
+  		  char tls_set, tls_clear;
+  		  bfd_boolean is_local;
+- 		  int expecting_tls_get_addr;
+  		  bfd_signed_vma *got_count;
+  
+  		  r_symndx = ELF32_R_SYM (rel->r_info);
+--- 4735,4740 ----
+*************** ppc_elf_tls_optimize (bfd *obfd ATTRIBUT
+*** 4718,4730 ****
+  			h = (struct elf_link_hash_entry *) h->root.u.i.link;
+  		    }
+  
+- 		  expecting_tls_get_addr = 0;
+  		  is_local = FALSE;
+  		  if (h == NULL
+  		      || !h->def_dynamic)
+  		    is_local = TRUE;
+  
+  		  r_type = ELF32_R_TYPE (rel->r_info);
+  		  switch (r_type)
+  		    {
+  		    case R_PPC_GOT_TLSLD16:
+--- 4749,4782 ----
+  			h = (struct elf_link_hash_entry *) h->root.u.i.link;
+  		    }
+  
+  		  is_local = FALSE;
+  		  if (h == NULL
+  		      || !h->def_dynamic)
+  		    is_local = TRUE;
+  
+  		  r_type = ELF32_R_TYPE (rel->r_info);
++ 		  /* If this section has old-style __tls_get_addr calls
++ 		     without marker relocs, then check that each
++ 		     __tls_get_addr call reloc is preceded by a reloc
++ 		     that conceivably belongs to the __tls_get_addr arg
++ 		     setup insn.  If we don't find matching arg setup
++ 		     relocs, don't do any tls optimization.  */
++ 		  if (pass == 0
++ 		      && sec->has_tls_get_addr_call
++ 		      && h != NULL
++ 		      && h == htab->tls_get_addr
++ 		      && !expecting_tls_get_addr
++ 		      && is_branch_reloc (r_type))
++ 		    {
++ 		      info->callbacks->minfo ("%C __tls_get_addr lost arg, "
++ 					      "TLS optimization disabled\n",
++ 					      ibfd, sec, rel->r_offset);
++ 		      if (elf_section_data (sec)->relocs != relstart)
++ 			free (relstart);
++ 		      return TRUE;
++ 		    }
++ 
++ 		  expecting_tls_get_addr = 0;
+  		  switch (r_type)
+  		    {
+  		    case R_PPC_GOT_TLSLD16:
+*************** ppc_elf_tls_optimize (bfd *obfd ATTRIBUT
+*** 4801,4809 ****
+  		      /* Uh oh, we didn't find the expected call.  We
+  			 could just mark this symbol to exclude it
+  			 from tls optimization but it's safer to skip
+! 			 the entire section.  */
+! 		      sec->has_tls_reloc = 0;
+! 		      break;
+  		    }
+  
+  		  if (expecting_tls_get_addr)
+--- 4853,4865 ----
+  		      /* Uh oh, we didn't find the expected call.  We
+  			 could just mark this symbol to exclude it
+  			 from tls optimization but it's safer to skip
+! 			 the entire optimization.  */
+! 		      info->callbacks->minfo (_("%C arg lost __tls_get_addr, "
+! 						"TLS optimization disabled\n"),
+! 					      ibfd, sec, rel->r_offset);
+! 		      if (elf_section_data (sec)->relocs != relstart)
+! 			free (relstart);
+! 		      return TRUE;
+  		    }
+  
+  		  if (expecting_tls_get_addr)
+diff -rcp ../binutils-2.20.51.0.2.orig/bfd/elf64-ppc.c ./bfd/elf64-ppc.c
+*** ../binutils-2.20.51.0.2.orig/bfd/elf64-ppc.c	2012-04-26 22:03:49.371596763 +0930
+--- ./bfd/elf64-ppc.c	2012-04-26 21:23:20.079844903 +0930
+***************
+*** 1,9 ****
+  /* PowerPC64-specific support for 64-bit ELF.
+     Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+!    2009 Free Software Foundation, Inc.
+     Written by Linus Nordberg, Swox AB <info@swox.com>,
+     based on elf32-ppc.c by Ian Lance Taylor.
+!    Largely rewritten by Alan Modra <amodra@bigpond.net.au>
+  
+     This file is part of BFD, the Binary File Descriptor library.
+  
+--- 1,9 ----
+  /* PowerPC64-specific support for 64-bit ELF.
+     Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+!    2009, 2010, 2011, 2012 Free Software Foundation, Inc.
+     Written by Linus Nordberg, Swox AB <info@swox.com>,
+     based on elf32-ppc.c by Ian Lance Taylor.
+!    Largely rewritten by Alan Modra.
+  
+     This file is part of BFD, the Binary File Descriptor library.
+  
+*************** static bfd_vma opd_entry_value
+*** 78,89 ****
+  
+  #define bfd_elf64_mkobject		      ppc64_elf_mkobject
+  #define bfd_elf64_bfd_reloc_type_lookup	      ppc64_elf_reloc_type_lookup
+! #define bfd_elf64_bfd_reloc_name_lookup ppc64_elf_reloc_name_lookup
+  #define bfd_elf64_bfd_merge_private_bfd_data  ppc64_elf_merge_private_bfd_data
+  #define bfd_elf64_new_section_hook	      ppc64_elf_new_section_hook
+  #define bfd_elf64_bfd_link_hash_table_create  ppc64_elf_link_hash_table_create
+  #define bfd_elf64_bfd_link_hash_table_free    ppc64_elf_link_hash_table_free
+  #define bfd_elf64_get_synthetic_symtab	      ppc64_elf_get_synthetic_symtab
+  
+  #define elf_backend_object_p		      ppc64_elf_object_p
+  #define elf_backend_grok_prstatus	      ppc64_elf_grok_prstatus
+--- 78,90 ----
+  
+  #define bfd_elf64_mkobject		      ppc64_elf_mkobject
+  #define bfd_elf64_bfd_reloc_type_lookup	      ppc64_elf_reloc_type_lookup
+! #define bfd_elf64_bfd_reloc_name_lookup	      ppc64_elf_reloc_name_lookup
+  #define bfd_elf64_bfd_merge_private_bfd_data  ppc64_elf_merge_private_bfd_data
+  #define bfd_elf64_new_section_hook	      ppc64_elf_new_section_hook
+  #define bfd_elf64_bfd_link_hash_table_create  ppc64_elf_link_hash_table_create
+  #define bfd_elf64_bfd_link_hash_table_free    ppc64_elf_link_hash_table_free
+  #define bfd_elf64_get_synthetic_symtab	      ppc64_elf_get_synthetic_symtab
++ #define bfd_elf64_bfd_link_just_syms	      ppc64_elf_link_just_syms
+  
+  #define elf_backend_object_p		      ppc64_elf_object_p
+  #define elf_backend_grok_prstatus	      ppc64_elf_grok_prstatus
+*************** static bfd_vma opd_entry_value
+*** 149,154 ****
+--- 150,162 ----
+  #define ADDIS_R2_R2	0x3c420000	/* addis %r2,%r2,off@ha  */
+  #define ADDI_R2_R2	0x38420000	/* addi  %r2,%r2,off@l   */
+  
++ #define XOR_R11_R11_R11	0x7d6b5a78	/* xor   %r11,%r11,%r11  */
++ #define ADD_R12_R12_R11	0x7d8c5a14	/* add   %r12,%r12,%r11  */
++ #define ADD_R2_R2_R11	0x7c425a14	/* add   %r2,%r2,%r11    */
++ #define CMPLDI_R2_0	0x28220000	/* cmpldi %r2,0          */
++ #define BNECTR		0x4ca20420	/* bnectr+               */
++ #define BNECTR_P4	0x4ce20420	/* bnectr+               */
++ 
+  #define LD_R11_0R2	0xe9620000	/* ld	 %r11,xxx+0(%r2) */
+  #define LD_R2_0R2	0xe8420000	/* ld	 %r2,xxx+0(%r2)  */
+  
+*************** static reloc_howto_type ppc64_elf_howto_
+*** 1279,1284 ****
+--- 1287,1306 ----
+  	 0,			/* dst_mask */
+  	 FALSE),		/* pcrel_offset */
+  
++   HOWTO (R_PPC64_TOCSAVE,
++ 	 0,			/* rightshift */
++ 	 2,			/* size (0 = byte, 1 = short, 2 = long) */
++ 	 32,			/* bitsize */
++ 	 FALSE,			/* pc_relative */
++ 	 0,			/* bitpos */
++ 	 complain_overflow_dont, /* complain_on_overflow */
++ 	 bfd_elf_generic_reloc,	/* special_function */
++ 	 "R_PPC64_TOCSAVE",	/* name */
++ 	 FALSE,			/* partial_inplace */
++ 	 0,			/* src_mask */
++ 	 0,			/* dst_mask */
++ 	 FALSE),		/* pcrel_offset */
++ 
+    /* Computes the load module index of the load module that contains the
+       definition of its TLS sym.  */
+    HOWTO (R_PPC64_DTPMOD64,
+*************** ppc64_elf_brtaken_reloc (bfd *abfd, arel
+*** 2339,2346 ****
+    long insn;
+    enum elf_ppc64_reloc_type r_type;
+    bfd_size_type octets;
+!   /* Disabled until we sort out how ld should choose 'y' vs 'at'.  */
+!   bfd_boolean is_power4 = FALSE;
+  
+    /* If this is a relocatable link (output_bfd test tells us), just
+       call the generic function.  Any adjustment will be done at final
+--- 2361,2368 ----
+    long insn;
+    enum elf_ppc64_reloc_type r_type;
+    bfd_size_type octets;
+!   /* Assume 'at' branch hints.  */
+!   bfd_boolean is_isa_v2 = TRUE;
+  
+    /* If this is a relocatable link (output_bfd test tells us), just
+       call the generic function.  Any adjustment will be done at final
+*************** ppc64_elf_brtaken_reloc (bfd *abfd, arel
+*** 2357,2363 ****
+        || r_type == R_PPC64_REL14_BRTAKEN)
+      insn |= 0x01 << 21; /* 'y' or 't' bit, lowest bit of BO field.  */
+  
+!   if (is_power4)
+      {
+        /* Set 'a' bit.  This is 0b00010 in BO field for branch
+  	 on CR(BI) insns (BO == 001at or 011at), and 0b01000
+--- 2379,2385 ----
+        || r_type == R_PPC64_REL14_BRTAKEN)
+      insn |= 0x01 << 21; /* 'y' or 't' bit, lowest bit of BO field.  */
+  
+!   if (is_isa_v2)
+      {
+        /* Set 'a' bit.  This is 0b00010 in BO field for branch
+  	 on CR(BI) insns (BO == 001at or 011at), and 0b01000
+*************** struct ppc64_elf_obj_tdata
+*** 2595,2601 ****
+  
+    /* Nonzero if this bfd has small toc/got relocs, ie. that expect
+       the reloc to be in the range -32768 to 32767.  */
+!   unsigned int has_small_toc_reloc;
+  };
+  
+  #define ppc64_elf_tdata(bfd) \
+--- 2617,2627 ----
+  
+    /* Nonzero if this bfd has small toc/got relocs, ie. that expect
+       the reloc to be in the range -32768 to 32767.  */
+!   unsigned int has_small_toc_reloc : 1;
+! 
+!   /* Set if toc/got ha relocs detected not using r2, or lo reloc
+!      instruction not one we handle.  */
+!   unsigned int unexpected_toc_insn : 1;
+  };
+  
+  #define ppc64_elf_tdata(bfd) \
+*************** enum ppc_stub_type {
+*** 3609,3615 ****
+    ppc_stub_long_branch_r2off,
+    ppc_stub_plt_branch,
+    ppc_stub_plt_branch_r2off,
+!   ppc_stub_plt_call
+  };
+  
+  struct ppc_stub_hash_entry {
+--- 3635,3642 ----
+    ppc_stub_long_branch_r2off,
+    ppc_stub_plt_branch,
+    ppc_stub_plt_branch_r2off,
+!   ppc_stub_plt_call,
+!   ppc_stub_plt_call_r2save
+  };
+  
+  struct ppc_stub_hash_entry {
+*************** struct ppc_link_hash_table
+*** 3717,3722 ****
+--- 3744,3752 ----
+    /* Another hash table for plt_branch stubs.  */
+    struct bfd_hash_table branch_hash_table;
+  
++   /* Hash table for function prologue tocsave.  */
++   htab_t tocsave_htab;
++ 
+    /* Linker stub bfd.  */
+    bfd *stub_bfd;
+  
+*************** struct ppc_link_hash_table
+*** 3773,3783 ****
+    bfd_size_type got_reli_size;
+  
+    /* Statistics.  */
+!   unsigned long stub_count[ppc_stub_plt_call];
+  
+    /* Number of stubs against global syms.  */
+    unsigned long stub_globals;
+  
+    /* Set if we should emit symbols for stubs.  */
+    unsigned int emit_stub_syms:1;
+  
+--- 3803,3822 ----
+    bfd_size_type got_reli_size;
+  
+    /* Statistics.  */
+!   unsigned long stub_count[ppc_stub_plt_call_r2save];
+  
+    /* Number of stubs against global syms.  */
+    unsigned long stub_globals;
+  
++   /* Alignment of PLT call stubs.  */
++   unsigned int plt_stub_align:4;
++ 
++   /* Set if PLT call stubs should load r11.  */
++   unsigned int plt_static_chain:1;
++ 
++   /* Set if PLT call stubs need a read-read barrier.  */
++   unsigned int plt_thread_safe:1;
++ 
+    /* Set if we should emit symbols for stubs.  */
+    unsigned int emit_stub_syms:1;
+  
+*************** link_hash_newfunc (struct bfd_hash_entry
+*** 3959,3964 ****
+--- 3998,4023 ----
+    return entry;
+  }
+  
++ struct tocsave_entry {
++   asection *sec;
++   bfd_vma offset;
++ };
++ 
++ static hashval_t
++ tocsave_htab_hash (const void *p)
++ {
++   const struct tocsave_entry *e = (const struct tocsave_entry *) p;
++   return ((bfd_vma)(intptr_t) e->sec ^ e->offset) >> 3;
++ }
++ 
++ static int
++ tocsave_htab_eq (const void *p1, const void *p2)
++ {
++   const struct tocsave_entry *e1 = (const struct tocsave_entry *) p1;
++   const struct tocsave_entry *e2 = (const struct tocsave_entry *) p2;
++   return e1->sec == e2->sec && e1->offset == e2->offset;
++ }
++ 
+  /* Create a ppc64 ELF linker hash table.  */
+  
+  static struct bfd_link_hash_table *
+*************** ppc64_elf_link_hash_table_create (bfd *a
+*** 3989,3994 ****
+--- 4048,4060 ----
+  			    sizeof (struct ppc_branch_hash_entry)))
+      return NULL;
+  
++   htab->tocsave_htab = htab_try_create (1024,
++ 					tocsave_htab_hash,
++ 					tocsave_htab_eq,
++ 					NULL);
++   if (htab->tocsave_htab == NULL)
++     return NULL;
++ 
+    /* Initializing two fields of the union is just cosmetic.  We really
+       only care about glist, but when compiled on a 32-bit host the
+       bfd_vma fields are larger.  Setting the bfd_vma to zero makes
+*************** ppc64_elf_link_hash_table_create (bfd *a
+*** 4010,4019 ****
+  static void
+  ppc64_elf_link_hash_table_free (struct bfd_link_hash_table *hash)
+  {
+!   struct ppc_link_hash_table *ret = (struct ppc_link_hash_table *) hash;
+  
+!   bfd_hash_table_free (&ret->stub_hash_table);
+!   bfd_hash_table_free (&ret->branch_hash_table);
+    _bfd_generic_link_hash_table_free (hash);
+  }
+  
+--- 4076,4087 ----
+  static void
+  ppc64_elf_link_hash_table_free (struct bfd_link_hash_table *hash)
+  {
+!   struct ppc_link_hash_table *htab = (struct ppc_link_hash_table *) hash;
+  
+!   bfd_hash_table_free (&htab->stub_hash_table);
+!   bfd_hash_table_free (&htab->branch_hash_table);
+!   if (htab->tocsave_htab)
+!     htab_delete (htab->tocsave_htab);
+    _bfd_generic_link_hash_table_free (hash);
+  }
+  
+*************** ppc64_elf_as_needed_cleanup (bfd *ibfd A
+*** 4744,4749 ****
+--- 4812,4836 ----
+    return TRUE;
+  }
+  
++ /* If --just-symbols against a final linked binary, then assume we need
++    toc adjusting stubs when calling functions defined there.  */
++ 
++ static void
++ ppc64_elf_link_just_syms (asection *sec, struct bfd_link_info *info)
++ {
++   if ((sec->flags & SEC_CODE) != 0
++       && (sec->owner->flags & (EXEC_P | DYNAMIC)) != 0
++       && is_ppc64_elf (sec->owner))
++     {
++       asection *got = bfd_get_section_by_name (sec->owner, ".got");
++       if (got != NULL
++ 	  && got->size >= elf_backend_got_header_size
++ 	  && bfd_get_section_by_name (sec->owner, ".opd") != NULL)
++ 	sec->has_toc_reloc = 1;
++     }
++   _bfd_elf_link_just_syms (sec, info);
++ }
++ 
+  static struct plt_entry **
+  update_local_sym_info (bfd *abfd, Elf_Internal_Shdr *symtab_hdr,
+  		       unsigned long r_symndx, bfd_vma r_addend, int tls_type)
+*************** opd_entry_value (asection *opd_sec,
+*** 5469,5479 ****
+    /* No relocs implies we are linking a --just-symbols object.  */
+    if (opd_sec->reloc_count == 0)
+      {
+!       bfd_vma val;
+  
+!       if (!bfd_get_section_contents (opd_bfd, opd_sec, &val, offset, 8))
+  	return (bfd_vma) -1;
+  
+        if (code_sec != NULL)
+  	{
+  	  asection *sec, *likely = NULL;
+--- 5556,5567 ----
+    /* No relocs implies we are linking a --just-symbols object.  */
+    if (opd_sec->reloc_count == 0)
+      {
+!       char buf[8];
+  
+!       if (!bfd_get_section_contents (opd_bfd, opd_sec, buf, offset, 8))
+  	return (bfd_vma) -1;
+  
++       val = bfd_get_64 (opd_bfd, buf);
+        if (code_sec != NULL)
+  	{
+  	  asection *sec, *likely = NULL;
+*************** get_tls_mask (unsigned char **tls_maskp,
+*** 6724,6729 ****
+--- 6812,6866 ----
+    return 1;
+  }
+  
++ /* Find (or create) an entry in the tocsave hash table.  */
++ 
++ static struct tocsave_entry *
++ tocsave_find (struct ppc_link_hash_table *htab,
++ 	      enum insert_option insert,
++ 	      Elf_Internal_Sym **local_syms,
++ 	      const Elf_Internal_Rela *irela,
++ 	      bfd *ibfd)
++ {
++   unsigned long r_indx;
++   struct elf_link_hash_entry *h;
++   Elf_Internal_Sym *sym;
++   struct tocsave_entry ent, *p;
++   hashval_t hash;
++   struct tocsave_entry **slot;
++ 
++   r_indx = ELF64_R_SYM (irela->r_info);
++   if (!get_sym_h (&h, &sym, &ent.sec, NULL, local_syms, r_indx, ibfd))
++     return NULL;
++   if (ent.sec == NULL || ent.sec->output_section == NULL)
++     {
++       (*_bfd_error_handler)
++ 	(_("%B: undefined symbol on R_PPC64_TOCSAVE relocation"));
++       return NULL;
++     }
++ 
++   if (h != NULL)
++     ent.offset = h->root.u.def.value;
++   else
++     ent.offset = sym->st_value;
++   ent.offset += irela->r_addend;
++ 
++   hash = tocsave_htab_hash (&ent);
++   slot = ((struct tocsave_entry **)
++ 	  htab_find_slot_with_hash (htab->tocsave_htab, &ent, hash, insert));
++   if (slot == NULL)
++     return NULL;
++ 
++   if (*slot == NULL)
++     {
++       p = (struct tocsave_entry *) bfd_alloc (ibfd, sizeof (*p));
++       if (p == NULL)
++ 	return NULL;
++       *p = ent;
++       *slot = p;
++     }
++   return *slot;
++ }
++ 
+  /* Adjust all global syms defined in opd sections.  In gcc generated
+     code for the old ABI, these will already have been done.  */
+  
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7459,7464 ****
+--- 7596,7602 ----
+    bfd *ibfd;
+    asection *sec;
+    struct ppc_link_hash_table *htab;
++   unsigned char *toc_ref;
+    int pass;
+  
+    if (info->relocatable || !info->executable)
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7468,7490 ****
+    if (htab == NULL)
+      return FALSE;
+  
+!   for (ibfd = info->input_bfds; ibfd != NULL; ibfd = ibfd->link_next)
+!     {
+!       Elf_Internal_Sym *locsyms = NULL;
+!       asection *toc = bfd_get_section_by_name (ibfd, ".toc");
+!       unsigned char *toc_ref = NULL;
+! 
+!       /* Look at all the sections for this file.  Make two passes over
+! 	 the relocs.  On the first pass, mark toc entries involved
+! 	 with tls relocs, and check that tls relocs involved in
+! 	 setting up a tls_get_addr call are indeed followed by such a
+! 	 call.  If they are not, exclude them from the optimizations
+! 	 done on the second pass.  */
+!       for (pass = 0; pass < 2; ++pass)
+  	for (sec = ibfd->sections; sec != NULL; sec = sec->next)
+  	  if (sec->has_tls_reloc && !bfd_is_abs_section (sec->output_section))
+  	    {
+  	      Elf_Internal_Rela *relstart, *rel, *relend;
+  
+  	      /* Read the relocations.  */
+  	      relstart = _bfd_elf_link_read_relocs (ibfd, sec, NULL, NULL,
+--- 7606,7630 ----
+    if (htab == NULL)
+      return FALSE;
+  
+!   /* Make two passes over the relocs.  On the first pass, mark toc
+!      entries involved with tls relocs, and check that tls relocs
+!      involved in setting up a tls_get_addr call are indeed followed by
+!      such a call.  If they are not, we can't do any tls optimization.
+!      On the second pass twiddle tls_mask flags to notify
+!      relocate_section that optimization can be done, and adjust got
+!      and plt refcounts.  */
+!   toc_ref = NULL;
+!   for (pass = 0; pass < 2; ++pass)
+!     for (ibfd = info->input_bfds; ibfd != NULL; ibfd = ibfd->link_next)
+!       {
+! 	Elf_Internal_Sym *locsyms = NULL;
+! 	asection *toc = bfd_get_section_by_name (ibfd, ".toc");
+! 
+  	for (sec = ibfd->sections; sec != NULL; sec = sec->next)
+  	  if (sec->has_tls_reloc && !bfd_is_abs_section (sec->output_section))
+  	    {
+  	      Elf_Internal_Rela *relstart, *rel, *relend;
++ 	      bfd_boolean found_tls_get_addr_arg = 0;
+  
+  	      /* Read the relocations.  */
+  	      relstart = _bfd_elf_link_read_relocs (ibfd, sec, NULL, NULL,
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7506,7511 ****
+--- 7646,7652 ----
+  		  bfd_boolean ok_tprel, is_local;
+  		  long toc_ref_index = 0;
+  		  int expecting_tls_get_addr = 0;
++ 		  bfd_boolean ret = FALSE;
+  
+  		  r_symndx = ELF64_R_SYM (rel->r_info);
+  		  if (!get_sym_h (&h, &sym, &sym_sec, &tls_mask, &locsyms,
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7520,7526 ****
+  			  && (elf_symtab_hdr (ibfd).contents
+  			      != (unsigned char *) locsyms))
+  			free (locsyms);
+! 		      return FALSE;
+  		    }
+  
+  		  if (h != NULL)
+--- 7661,7667 ----
+  			  && (elf_symtab_hdr (ibfd).contents
+  			      != (unsigned char *) locsyms))
+  			free (locsyms);
+! 		      return ret;
+  		    }
+  
+  		  if (h != NULL)
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7531,7537 ****
+  		      else if (h->root.type == bfd_link_hash_undefweak)
+  			value = 0;
+  		      else
+! 			continue;
+  		    }
+  		  else
+  		    /* Symbols referenced by TLS relocs must be of type
+--- 7672,7681 ----
+  		      else if (h->root.type == bfd_link_hash_undefweak)
+  			value = 0;
+  		      else
+! 			{
+! 			  found_tls_get_addr_arg = 0;
+! 			  continue;
+! 			}
+  		    }
+  		  else
+  		    /* Symbols referenced by TLS relocs must be of type
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7558,7568 ****
+--- 7702,7735 ----
+  		    }
+  
+  		  r_type = ELF64_R_TYPE (rel->r_info);
++ 		  /* If this section has old-style __tls_get_addr calls
++ 		     without marker relocs, then check that each
++ 		     __tls_get_addr call reloc is preceded by a reloc
++ 		     that conceivably belongs to the __tls_get_addr arg
++ 		     setup insn.  If we don't find matching arg setup
++ 		     relocs, don't do any tls optimization.  */
++ 		  if (pass == 0
++ 		      && sec->has_tls_get_addr_call
++ 		      && h != NULL
++ 		      && (h == &htab->tls_get_addr->elf
++ 			  || h == &htab->tls_get_addr_fd->elf)
++ 		      && !found_tls_get_addr_arg
++ 		      && is_branch_reloc (r_type))
++ 		    {
++ 		      info->callbacks->minfo (_("%C __tls_get_addr lost arg, "
++ 						"TLS optimization disabled\n"),
++ 					      ibfd, sec, rel->r_offset);
++ 		      ret = TRUE;
++ 		      goto err_free_rel;
++ 		    }
++ 
++ 		  found_tls_get_addr_arg = 0;
+  		  switch (r_type)
+  		    {
+  		    case R_PPC64_GOT_TLSLD16:
+  		    case R_PPC64_GOT_TLSLD16_LO:
+  		      expecting_tls_get_addr = 1;
++ 		      found_tls_get_addr_arg = 1;
+  		      /* Fall thru */
+  
+  		    case R_PPC64_GOT_TLSLD16_HI:
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7582,7587 ****
+--- 7749,7755 ----
+  		    case R_PPC64_GOT_TLSGD16:
+  		    case R_PPC64_GOT_TLSGD16_LO:
+  		      expecting_tls_get_addr = 1;
++ 		      found_tls_get_addr_arg = 1;
+  		      /* Fall thru */
+  
+  		    case R_PPC64_GOT_TLSGD16_HI:
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7610,7620 ****
+  			}
+  		      continue;
+  
+- 		    case R_PPC64_TOC16:
+- 		    case R_PPC64_TOC16_LO:
+- 		    case R_PPC64_TLS:
+  		    case R_PPC64_TLSGD:
+  		    case R_PPC64_TLSLD:
+  		      if (sym_sec == NULL || sym_sec != toc)
+  			continue;
+  
+--- 7778,7791 ----
+  			}
+  		      continue;
+  
+  		    case R_PPC64_TLSGD:
+  		    case R_PPC64_TLSLD:
++ 		      found_tls_get_addr_arg = 1;
++ 		      /* Fall thru */
++ 
++ 		    case R_PPC64_TLS:
++ 		    case R_PPC64_TOC16:
++ 		    case R_PPC64_TOC16_LO:
+  		      if (sym_sec == NULL || sym_sec != toc)
+  			continue;
+  
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7623,7640 ****
+  			 case of R_PPC64_TLS, and after checking for
+  			 tls_get_addr for the TOC16 relocs.  */
+  		      if (toc_ref == NULL)
+! 			{
+! 			  toc_ref = bfd_zmalloc (toc->size / 8);
+! 			  if (toc_ref == NULL)
+! 			    goto err_free_rel;
+! 			}
+  		      if (h != NULL)
+  			value = h->root.u.def.value;
+  		      else
+  			value = sym->st_value;
+  		      value += rel->r_addend;
+  		      BFD_ASSERT (value < toc->size && value % 8 == 0);
+! 		      toc_ref_index = value / 8;
+  		      if (r_type == R_PPC64_TLS
+  			  || r_type == R_PPC64_TLSGD
+  			  || r_type == R_PPC64_TLSLD)
+--- 7794,7810 ----
+  			 case of R_PPC64_TLS, and after checking for
+  			 tls_get_addr for the TOC16 relocs.  */
+  		      if (toc_ref == NULL)
+! 			toc_ref = bfd_zmalloc (toc->output_section->rawsize / 8);
+! 		      if (toc_ref == NULL)
+! 			goto err_free_rel;
+! 
+  		      if (h != NULL)
+  			value = h->root.u.def.value;
+  		      else
+  			value = sym->st_value;
+  		      value += rel->r_addend;
+  		      BFD_ASSERT (value < toc->size && value % 8 == 0);
+! 		      toc_ref_index = (value + toc->output_offset) / 8;
+  		      if (r_type == R_PPC64_TLS
+  			  || r_type == R_PPC64_TLSGD
+  			  || r_type == R_PPC64_TLSLD)
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7655,7661 ****
+  		      if (pass == 0
+  			  || sec != toc
+  			  || toc_ref == NULL
+! 			  || !toc_ref[rel->r_offset / 8])
+  			continue;
+  		      if (ok_tprel)
+  			{
+--- 7825,7831 ----
+  		      if (pass == 0
+  			  || sec != toc
+  			  || toc_ref == NULL
+! 			  || !toc_ref[(rel->r_offset + toc->output_offset) / 8])
+  			continue;
+  		      if (ok_tprel)
+  			{
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7670,7676 ****
+  		      if (pass == 0
+  			  || sec != toc
+  			  || toc_ref == NULL
+! 			  || !toc_ref[rel->r_offset / 8])
+  			continue;
+  		      if (rel + 1 < relend
+  			  && (rel[1].r_info
+--- 7840,7846 ----
+  		      if (pass == 0
+  			  || sec != toc
+  			  || toc_ref == NULL
+! 			  || !toc_ref[(rel->r_offset + toc->output_offset) / 8])
+  			continue;
+  		      if (rel + 1 < relend
+  			  && (rel[1].r_info
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7722,7729 ****
+  						     rel, ibfd);
+  			      if (retval == 0)
+  				goto err_free_rel;
+! 			      if (retval > 1 && toc_tls != NULL)
+! 				toc_ref[toc_ref_index] = 1;
+  			    }
+  			  continue;
+  			}
+--- 7892,7904 ----
+  						     rel, ibfd);
+  			      if (retval == 0)
+  				goto err_free_rel;
+! 			      if (toc_tls != NULL)
+! 				{
+! 				  if ((*toc_tls & (TLS_GD | TLS_LD)) != 0)
+! 				    found_tls_get_addr_arg = 1;
+! 				  if (retval > 1)
+! 				    toc_ref[toc_ref_index] = 1;
+! 				}
+  			    }
+  			  continue;
+  			}
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7734,7742 ****
+  		      /* Uh oh, we didn't find the expected call.  We
+  			 could just mark this symbol to exclude it
+  			 from tls optimization but it's safer to skip
+! 			 the entire section.  */
+! 		      sec->has_tls_reloc = 0;
+! 		      break;
+  		    }
+  
+  		  if (expecting_tls_get_addr && htab->tls_get_addr != NULL)
+--- 7909,7920 ----
+  		      /* Uh oh, we didn't find the expected call.  We
+  			 could just mark this symbol to exclude it
+  			 from tls optimization but it's safer to skip
+! 			 the entire optimization.  */
+! 		      info->callbacks->minfo (_("%C arg lost __tls_get_addr, "
+! 						"TLS optimization disabled\n"),
+! 					      ibfd, sec, rel->r_offset);
+! 		      ret = TRUE;
+! 		      goto err_free_rel;
+  		    }
+  
+  		  if (expecting_tls_get_addr && htab->tls_get_addr != NULL)
+*************** ppc64_elf_tls_optimize (struct bfd_link_
+*** 7822,7839 ****
+  		free (relstart);
+  	    }
+  
+!       if (toc_ref != NULL)
+! 	free (toc_ref);
+  
+!       if (locsyms != NULL
+! 	  && (elf_symtab_hdr (ibfd).contents != (unsigned char *) locsyms))
+! 	{
+! 	  if (!info->keep_memory)
+! 	    free (locsyms);
+! 	  else
+! 	    elf_symtab_hdr (ibfd).contents = (unsigned char *) locsyms;
+! 	}
+!     }
+    return TRUE;
+  }
+  
+--- 8000,8017 ----
+  		free (relstart);
+  	    }
+  
+! 	if (locsyms != NULL
+! 	    && (elf_symtab_hdr (ibfd).contents != (unsigned char *) locsyms))
+! 	  {
+! 	    if (!info->keep_memory)
+! 	      free (locsyms);
+! 	    else
+! 	      elf_symtab_hdr (ibfd).contents = (unsigned char *) locsyms;
+! 	  }
+!       }
+  
+!   if (toc_ref != NULL)
+!     free (toc_ref);
+    return TRUE;
+  }
+  
+*************** adjust_toc_syms (struct elf_link_hash_en
+*** 7899,7904 ****
+--- 8077,8108 ----
+    return TRUE;
+  }
+  
++ /* Return TRUE iff INSN is one we expect on a _LO variety toc/got reloc.  */
++ 
++ static bfd_boolean
++ ok_lo_toc_insn (unsigned int insn)
++ {
++   return ((insn & (0x3f << 26)) == 14u << 26 /* addi */
++ 	  || (insn & (0x3f << 26)) == 32u << 26 /* lwz */
++ 	  || (insn & (0x3f << 26)) == 34u << 26 /* lbz */
++ 	  || (insn & (0x3f << 26)) == 36u << 26 /* stw */
++ 	  || (insn & (0x3f << 26)) == 38u << 26 /* stb */
++ 	  || (insn & (0x3f << 26)) == 40u << 26 /* lhz */
++ 	  || (insn & (0x3f << 26)) == 42u << 26 /* lha */
++ 	  || (insn & (0x3f << 26)) == 44u << 26 /* sth */
++ 	  || (insn & (0x3f << 26)) == 46u << 26 /* lmw */
++ 	  || (insn & (0x3f << 26)) == 47u << 26 /* stmw */
++ 	  || (insn & (0x3f << 26)) == 48u << 26 /* lfs */
++ 	  || (insn & (0x3f << 26)) == 50u << 26 /* lfd */
++ 	  || (insn & (0x3f << 26)) == 52u << 26 /* stfs */
++ 	  || (insn & (0x3f << 26)) == 54u << 26 /* stfd */
++ 	  || ((insn & (0x3f << 26)) == 58u << 26 /* lwa,ld,lmd */
++ 	      && (insn & 3) != 1)
++ 	  || ((insn & (0x3f << 26)) == 62u << 26 /* std, stmd */
++ 	      && ((insn & 3) == 0 || (insn & 3) == 3))
++ 	  || (insn & (0x3f << 26)) == 12u << 26 /* addic */);
++ }
++ 
+  /* Examine all relocs referencing .toc sections in order to remove
+     unused .toc entries.  */
+  
+*************** ppc64_elf_edit_toc (struct bfd_link_info
+*** 8155,8164 ****
+--- 8359,8424 ----
+  		struct elf_link_hash_entry *h;
+  		Elf_Internal_Sym *sym;
+  		bfd_vma val;
++ 		enum {no_check, check_lo, check_ha} insn_check;
+  
+  		r_type = ELF64_R_TYPE (rel->r_info);
+  		switch (r_type)
+  		  {
++ 		  default:
++ 		    insn_check = no_check;
++ 		    break;
++ 
++ 		  case R_PPC64_GOT_TLSLD16_HA:
++ 		  case R_PPC64_GOT_TLSGD16_HA:
++ 		  case R_PPC64_GOT_TPREL16_HA:
++ 		  case R_PPC64_GOT_DTPREL16_HA:
++ 		  case R_PPC64_GOT16_HA:
++ 		  case R_PPC64_TOC16_HA:
++ 		    insn_check = check_ha;
++ 		    break;
++ 
++ 		  case R_PPC64_GOT_TLSLD16_LO:
++ 		  case R_PPC64_GOT_TLSGD16_LO:
++ 		  case R_PPC64_GOT_TPREL16_LO_DS:
++ 		  case R_PPC64_GOT_DTPREL16_LO_DS:
++ 		  case R_PPC64_GOT16_LO:
++ 		  case R_PPC64_GOT16_LO_DS:
++ 		  case R_PPC64_TOC16_LO:
++ 		  case R_PPC64_TOC16_LO_DS:
++ 		    insn_check = check_lo;
++ 		    break;
++ 		  }
++ 
++ 		if (insn_check != no_check)
++ 		  {
++ 		    bfd_vma off = rel->r_offset & ~3;
++ 		    unsigned char buf[4];
++ 		    unsigned int insn;
++ 
++ 		    if (!bfd_get_section_contents (ibfd, sec, buf, off, 4))
++ 		      {
++ 			free (used);
++ 			goto error_ret;
++ 		      }
++ 		    insn = bfd_get_32 (ibfd, buf);
++ 		    if (insn_check == check_lo
++ 			? !ok_lo_toc_insn (insn)
++ 			: ((insn & ((0x3f << 26) | 0x1f << 16))
++ 			   != ((15u << 26) | (2 << 16)) /* addis rt,2,imm */))
++ 		      {
++ 			char str[12];
++ 
++ 			ppc64_elf_tdata (ibfd)->unexpected_toc_insn = 1;
++ 			sprintf (str, "%#08x", insn);
++ 			(*_bfd_error_handler)
++ 			  (_("%B(%A+0x%lx): toc optimization is not supported for"
++ 			     " %s instruction.\n"),
++ 			   ibfd, sec, (long) rel->r_offset & ~3, str);
++ 		      }
++ 		  }
++ 
++ 		switch (r_type)
++ 		  {
+  		  case R_PPC64_TOC16:
+  		  case R_PPC64_TOC16_LO:
+  		  case R_PPC64_TOC16_HI:
+*************** ppc64_elf_edit_toc (struct bfd_link_info
+*** 8206,8212 ****
+  		      case R_PPC64_TOC16_LO_DS:
+  			off = rel->r_offset + (bfd_big_endian (ibfd) ? -2 : 3);
+  			if (!bfd_get_section_contents (ibfd, sec, &opc, off, 1))
+! 			  return FALSE;
+  			if ((opc & (0x3f << 2)) == (58u << 2))
+  			  break;
+  			/* Fall thru */
+--- 8466,8475 ----
+  		      case R_PPC64_TOC16_LO_DS:
+  			off = rel->r_offset + (bfd_big_endian (ibfd) ? -2 : 3);
+  			if (!bfd_get_section_contents (ibfd, sec, &opc, off, 1))
+! 			  {
+! 			    free (used);
+! 			    goto error_ret;
+! 			  }
+  			if ((opc & (0x3f << 2)) == (58u << 2))
+  			  break;
+  			/* Fall thru */
+*************** ppc64_elf_edit_toc (struct bfd_link_info
+*** 8250,8256 ****
+  		some_unused = 1;
+  	      last = 0;
+  	    }
+! 	  else if (*drop & ref_from_discarded)
+  	    {
+  	      some_unused = 1;
+  	      last = ref_from_discarded;
+--- 8513,8519 ----
+  		some_unused = 1;
+  	      last = 0;
+  	    }
+! 	  else if ((*drop & ref_from_discarded) != 0)
+  	    {
+  	      some_unused = 1;
+  	      last = ref_from_discarded;
+*************** ppc64_elf_edit_toc (struct bfd_link_info
+*** 8368,8374 ****
+  			  break;
+  
+  			default:
+! 			  abort ();
+  			}
+  		      rel->r_addend = tocrel->r_addend;
+  		      elf_section_data (sec)->relocs = relstart;
+--- 8631,8645 ----
+  			  break;
+  
+  			default:
+! 			  if (!ppc64_elf_howto_table[R_PPC64_ADDR32])
+! 			    ppc_howto_init ();
+! 			  (*_bfd_error_handler)
+! 			    (_("%B(%A+0x%lx): %s relocation references "
+! 			       "optimized away TOC entry\n"),
+! 			     ibfd, sec, (long) rel->r_offset,
+! 			     ppc64_elf_howto_table[r_type]->name);
+! 			  bfd_set_error (bfd_error_bad_value);
+! 			  goto error_ret;
+  			}
+  		      rel->r_addend = tocrel->r_addend;
+  		      elf_section_data (sec)->relocs = relstart;
+*************** ppc_type_of_stub (asection *input_sec,
+*** 9256,9279 ****
+    return ppc_stub_none;
+  }
+  
+! /* Build a .plt call stub.  */
+  
+- static inline bfd_byte *
+- build_plt_stub (bfd *obfd, bfd_byte *p, int offset, Elf_Internal_Rela *r)
+- {
+  #define PPC_LO(v) ((v) & 0xffff)
+  #define PPC_HI(v) (((v) >> 16) & 0xffff)
+  #define PPC_HA(v) PPC_HI ((v) + 0x8000)
+  
+    if (PPC_HA (offset) != 0)
+      {
+        if (r != NULL)
+  	{
+  	  r[0].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_HA);
+! 	  r[1].r_offset = r[0].r_offset + 8;
+  	  r[1].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO_DS);
+  	  r[1].r_addend = r[0].r_addend;
+! 	  if (PPC_HA (offset + 16) != PPC_HA (offset))
+  	    {
+  	      r[2].r_offset = r[1].r_offset + 4;
+  	      r[2].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO);
+--- 9527,9657 ----
+    return ppc_stub_none;
+  }
+  
+! /* With power7 weakly ordered memory model, it is possible for ld.so
+!    to update a plt entry in one thread and have another thread see a
+!    stale zero toc entry.  To avoid this we need some sort of acquire
+!    barrier in the call stub.  One solution is to make the load of the
+!    toc word seem to appear to depend on the load of the function entry
+!    word.  Another solution is to test for r2 being zero, and branch to
+!    the appropriate glink entry if so.
+! 
+!    .	fake dep barrier	compare
+!    .	ld 11,xxx(2)		ld 11,xxx(2)
+!    .	mtctr 11		mtctr 11
+!    .	xor 11,11,11		ld 2,xxx+8(2)
+!    .	add 2,2,11		cmpldi 2,0
+!    .	ld 2,xxx+8(2)		bnectr+
+!    .	bctr			b <glink_entry>
+! 
+!    The solution involving the compare turns out to be faster, so
+!    that's what we use unless the branch won't reach.  */
+! 
+! #define ALWAYS_USE_FAKE_DEP 0
+! #define ALWAYS_EMIT_R2SAVE 0
+  
+  #define PPC_LO(v) ((v) & 0xffff)
+  #define PPC_HI(v) (((v) >> 16) & 0xffff)
+  #define PPC_HA(v) PPC_HI ((v) + 0x8000)
+  
++ static inline unsigned int
++ plt_stub_size (struct ppc_link_hash_table *htab,
++ 	       struct ppc_stub_hash_entry *stub_entry,
++ 	       bfd_vma off)
++ {
++   unsigned size = PLT_CALL_STUB_SIZE;
++ 
++   if (!(ALWAYS_EMIT_R2SAVE
++ 	|| stub_entry->stub_type == ppc_stub_plt_call_r2save))
++     size -= 4;
++   if (!htab->plt_static_chain)
++     size -= 4;
++   if (htab->plt_thread_safe)
++     size += 8;
++   if (PPC_HA (off) == 0)
++     size -= 4;
++   if (PPC_HA (off + 8 + 8 * htab->plt_static_chain) != PPC_HA (off))
++     size += 4;
++   if (stub_entry->h != NULL
++       && (stub_entry->h == htab->tls_get_addr_fd
++ 	  || stub_entry->h == htab->tls_get_addr)
++       && !htab->no_tls_get_addr_opt)
++     size += 13 * 4;
++   return size;
++ }
++ 
++ /* If this stub would cross fewer 2**plt_stub_align boundaries if we align,
++    then return the padding needed to do so.  */
++ static inline unsigned int
++ plt_stub_pad (struct ppc_link_hash_table *htab,
++ 	      struct ppc_stub_hash_entry *stub_entry,
++ 	      bfd_vma plt_off)
++ {
++   int stub_align = 1 << htab->plt_stub_align;
++   unsigned stub_size = plt_stub_size (htab, stub_entry, plt_off);
++   bfd_vma stub_off = stub_entry->stub_sec->size;
++ 
++   if (((stub_off + stub_size - 1) & -stub_align) - (stub_off & -stub_align)
++       > (stub_size & -stub_align))
++     return stub_align - (stub_off & (stub_align - 1));
++   return 0;
++ }
++ 
++ /* Build a .plt call stub.  */
++ 
++ static inline bfd_byte *
++ build_plt_stub (struct ppc_link_hash_table *htab,
++ 		struct ppc_stub_hash_entry *stub_entry,
++ 		bfd_byte *p, bfd_vma offset, Elf_Internal_Rela *r)
++ {
++   bfd *obfd = htab->stub_bfd;
++   bfd_boolean plt_static_chain = htab->plt_static_chain;
++   bfd_boolean plt_thread_safe = htab->plt_thread_safe;
++   bfd_boolean use_fake_dep = plt_thread_safe;
++   bfd_vma cmp_branch_off = 0;
++ 
++   if (!ALWAYS_USE_FAKE_DEP
++       && plt_thread_safe
++       && !(stub_entry->h != NULL
++ 	   && (stub_entry->h == htab->tls_get_addr_fd
++ 	       || stub_entry->h == htab->tls_get_addr)
++ 	   && !htab->no_tls_get_addr_opt))
++     {
++       bfd_vma pltoff = stub_entry->plt_ent->plt.offset & ~1;
++       bfd_vma pltindex = (pltoff - PLT_INITIAL_ENTRY_SIZE) / PLT_ENTRY_SIZE;
++       bfd_vma glinkoff = GLINK_CALL_STUB_SIZE + pltindex * 8;
++       bfd_vma to, from;
++ 
++       if (pltindex > 32767)
++ 	glinkoff += (pltindex - 32767) * 4;
++       to = (glinkoff
++ 	    + htab->glink->output_offset
++ 	    + htab->glink->output_section->vma);
++       from = (p - stub_entry->stub_sec->contents
++ 	      + 4 * (ALWAYS_EMIT_R2SAVE
++ 		     || stub_entry->stub_type == ppc_stub_plt_call_r2save)
++ 	      + 4 * (PPC_HA (offset) != 0)
++ 	      + 4 * (PPC_HA (offset + 8 + 8 * plt_static_chain)
++ 		     != PPC_HA (offset))
++ 	      + 4 * (plt_static_chain != 0)
++ 	      + 20
++ 	      + stub_entry->stub_sec->output_offset
++ 	      + stub_entry->stub_sec->output_section->vma);
++       cmp_branch_off = to - from;
++       use_fake_dep = cmp_branch_off + (1 << 25) >= (1 << 26);
++     }
++ 
+    if (PPC_HA (offset) != 0)
+      {
+        if (r != NULL)
+  	{
++ 	  if (ALWAYS_EMIT_R2SAVE
++ 	      || stub_entry->stub_type == ppc_stub_plt_call_r2save)
++ 	    r[0].r_offset += 4;
+  	  r[0].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_HA);
+! 	  r[1].r_offset = r[0].r_offset + 4;
+  	  r[1].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO_DS);
+  	  r[1].r_addend = r[0].r_addend;
+! 	  if (PPC_HA (offset + 8 + 8 * plt_static_chain) != PPC_HA (offset))
+  	    {
+  	      r[2].r_offset = r[1].r_offset + 4;
+  	      r[2].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO);
+*************** build_plt_stub (bfd *obfd, bfd_byte *p, 
+*** 9281,9314 ****
+  	    }
+  	  else
+  	    {
+! 	      r[2].r_offset = r[1].r_offset + 8;
+  	      r[2].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO_DS);
+  	      r[2].r_addend = r[0].r_addend + 8;
+! 	      r[3].r_offset = r[2].r_offset + 4;
+! 	      r[3].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO_DS);
+! 	      r[3].r_addend = r[0].r_addend + 16;
+  	    }
+  	}
+        bfd_put_32 (obfd, ADDIS_R12_R2 | PPC_HA (offset), p),	p += 4;
+-       bfd_put_32 (obfd, STD_R2_40R1, p),			p += 4;
+        bfd_put_32 (obfd, LD_R11_0R12 | PPC_LO (offset), p),	p += 4;
+!       if (PPC_HA (offset + 16) != PPC_HA (offset))
+  	{
+  	  bfd_put_32 (obfd, ADDI_R12_R12 | PPC_LO (offset), p),	p += 4;
+  	  offset = 0;
+  	}
+        bfd_put_32 (obfd, MTCTR_R11, p),				p += 4;
+        bfd_put_32 (obfd, LD_R2_0R12 | PPC_LO (offset + 8), p),	p += 4;
+!       bfd_put_32 (obfd, LD_R11_0R12 | PPC_LO (offset + 16), p),	p += 4;
+!       bfd_put_32 (obfd, BCTR, p),				p += 4;
+      }
+    else
+      {
+        if (r != NULL)
+  	{
+! 	  r[0].r_offset += 4;
+  	  r[0].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+! 	  if (PPC_HA (offset + 16) != PPC_HA (offset))
+  	    {
+  	      r[1].r_offset = r[0].r_offset + 4;
+  	      r[1].r_info = ELF64_R_INFO (0, R_PPC64_TOC16);
+--- 9659,9704 ----
+  	    }
+  	  else
+  	    {
+! 	      r[2].r_offset = r[1].r_offset + 8 + 8 * use_fake_dep;
+  	      r[2].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO_DS);
+  	      r[2].r_addend = r[0].r_addend + 8;
+! 	      if (plt_static_chain)
+! 		{
+! 		  r[3].r_offset = r[2].r_offset + 4;
+! 		  r[3].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_LO_DS);
+! 		  r[3].r_addend = r[0].r_addend + 16;
+! 		}
+  	    }
+  	}
++       if (ALWAYS_EMIT_R2SAVE
++ 	  || stub_entry->stub_type == ppc_stub_plt_call_r2save)
++ 	bfd_put_32 (obfd, STD_R2_40R1, p),			p += 4;
+        bfd_put_32 (obfd, ADDIS_R12_R2 | PPC_HA (offset), p),	p += 4;
+        bfd_put_32 (obfd, LD_R11_0R12 | PPC_LO (offset), p),	p += 4;
+!       if (PPC_HA (offset + 8 + 8 * plt_static_chain) != PPC_HA (offset))
+  	{
+  	  bfd_put_32 (obfd, ADDI_R12_R12 | PPC_LO (offset), p),	p += 4;
+  	  offset = 0;
+  	}
+        bfd_put_32 (obfd, MTCTR_R11, p),				p += 4;
++       if (use_fake_dep)
++ 	{
++ 	  bfd_put_32 (obfd, XOR_R11_R11_R11, p),		p += 4;
++ 	  bfd_put_32 (obfd, ADD_R12_R12_R11, p),		p += 4;
++ 	}
+        bfd_put_32 (obfd, LD_R2_0R12 | PPC_LO (offset + 8), p),	p += 4;
+!       if (plt_static_chain)
+! 	bfd_put_32 (obfd, LD_R11_0R12 | PPC_LO (offset + 16), p), p += 4;
+      }
+    else
+      {
+        if (r != NULL)
+  	{
+! 	  if (ALWAYS_EMIT_R2SAVE
+! 	      || stub_entry->stub_type == ppc_stub_plt_call_r2save)
+! 	    r[0].r_offset += 4;
+  	  r[0].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+! 	  if (PPC_HA (offset + 8 + 8 * plt_static_chain) != PPC_HA (offset))
+  	    {
+  	      r[1].r_offset = r[0].r_offset + 4;
+  	      r[1].r_info = ELF64_R_INFO (0, R_PPC64_TOC16);
+*************** build_plt_stub (bfd *obfd, bfd_byte *p, 
+*** 9316,9341 ****
+  	    }
+  	  else
+  	    {
+! 	      r[1].r_offset = r[0].r_offset + 8;
+  	      r[1].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+! 	      r[1].r_addend = r[0].r_addend + 16;
+! 	      r[2].r_offset = r[1].r_offset + 4;
+! 	      r[2].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+! 	      r[2].r_addend = r[0].r_addend + 8;
+  	    }
+  	}
+!       bfd_put_32 (obfd, STD_R2_40R1, p),			p += 4;
+        bfd_put_32 (obfd, LD_R11_0R2 | PPC_LO (offset), p),	p += 4;
+!       if (PPC_HA (offset + 16) != PPC_HA (offset))
+  	{
+  	  bfd_put_32 (obfd, ADDI_R2_R2 | PPC_LO (offset), p),	p += 4;
+  	  offset = 0;
+  	}
+        bfd_put_32 (obfd, MTCTR_R11, p),				p += 4;
+!       bfd_put_32 (obfd, LD_R11_0R2 | PPC_LO (offset + 16), p),	p += 4;
+        bfd_put_32 (obfd, LD_R2_0R2 | PPC_LO (offset + 8), p),	p += 4;
+-       bfd_put_32 (obfd, BCTR, p),				p += 4;
+      }
+    return p;
+  }
+  
+--- 9706,9749 ----
+  	    }
+  	  else
+  	    {
+! 	      r[1].r_offset = r[0].r_offset + 8 + 8 * use_fake_dep;
+  	      r[1].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+! 	      r[1].r_addend = r[0].r_addend + 8 + 8 * plt_static_chain;
+! 	      if (plt_static_chain)
+! 		{
+! 		  r[2].r_offset = r[1].r_offset + 4;
+! 		  r[2].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+! 		  r[2].r_addend = r[0].r_addend + 8;
+! 		}
+  	    }
+  	}
+!       if (ALWAYS_EMIT_R2SAVE
+! 	  || stub_entry->stub_type == ppc_stub_plt_call_r2save)
+! 	bfd_put_32 (obfd, STD_R2_40R1, p),			p += 4;
+        bfd_put_32 (obfd, LD_R11_0R2 | PPC_LO (offset), p),	p += 4;
+!       if (PPC_HA (offset + 8 + 8 * plt_static_chain) != PPC_HA (offset))
+  	{
+  	  bfd_put_32 (obfd, ADDI_R2_R2 | PPC_LO (offset), p),	p += 4;
+  	  offset = 0;
+  	}
+        bfd_put_32 (obfd, MTCTR_R11, p),				p += 4;
+!       if (use_fake_dep)
+! 	{
+! 	  bfd_put_32 (obfd, XOR_R11_R11_R11, p),		p += 4;
+! 	  bfd_put_32 (obfd, ADD_R2_R2_R11, p),			p += 4;
+! 	}
+!       if (plt_static_chain)
+! 	bfd_put_32 (obfd, LD_R11_0R2 | PPC_LO (offset + 16), p), p += 4;
+        bfd_put_32 (obfd, LD_R2_0R2 | PPC_LO (offset + 8), p),	p += 4;
+      }
++   if (plt_thread_safe && !use_fake_dep)
++     {
++       bfd_put_32 (obfd, CMPLDI_R2_0, p),			p += 4;
++       bfd_put_32 (obfd, BNECTR_P4, p),				p += 4;
++       bfd_put_32 (obfd, B_DOT + cmp_branch_off, p),		p += 4;
++     }
++   else
++     bfd_put_32 (obfd, BCTR, p),					p += 4;
+    return p;
+  }
+  
+*************** build_plt_stub (bfd *obfd, bfd_byte *p, 
+*** 9356,9364 ****
+  #define MTLR_R11	0x7d6803a6
+  
+  static inline bfd_byte *
+! build_tls_get_addr_stub (bfd *obfd, bfd_byte *p, int offset,
+! 			 Elf_Internal_Rela *r)
+  {
+    bfd_put_32 (obfd, LD_R11_0R3 + 0, p),		p += 4;
+    bfd_put_32 (obfd, LD_R12_0R3 + 8, p),		p += 4;
+    bfd_put_32 (obfd, MR_R0_R3, p),		p += 4;
+--- 9764,9775 ----
+  #define MTLR_R11	0x7d6803a6
+  
+  static inline bfd_byte *
+! build_tls_get_addr_stub (struct ppc_link_hash_table *htab,
+! 			 struct ppc_stub_hash_entry *stub_entry,
+! 			 bfd_byte *p, bfd_vma offset, Elf_Internal_Rela *r)
+  {
++   bfd *obfd = htab->stub_bfd;
++ 
+    bfd_put_32 (obfd, LD_R11_0R3 + 0, p),		p += 4;
+    bfd_put_32 (obfd, LD_R12_0R3 + 8, p),		p += 4;
+    bfd_put_32 (obfd, MR_R0_R3, p),		p += 4;
+*************** build_tls_get_addr_stub (bfd *obfd, bfd_
+*** 9371,9377 ****
+  
+    if (r != NULL)
+      r[0].r_offset += 9 * 4;
+!   p = build_plt_stub (obfd, p, offset, r);
+    bfd_put_32 (obfd, BCTRL, p - 4);
+  
+    bfd_put_32 (obfd, LD_R11_0R1 + 32, p),	p += 4;
+--- 9782,9788 ----
+  
+    if (r != NULL)
+      r[0].r_offset += 9 * 4;
+!   p = build_plt_stub (htab, stub_entry, p, offset, r);
+    bfd_put_32 (obfd, BCTRL, p - 4);
+  
+    bfd_put_32 (obfd, LD_R11_0R1 + 32, p),	p += 4;
+*************** get_relocs (asection *sec, int count)
+*** 9408,9413 ****
+--- 9819,9855 ----
+    return relocs;
+  }
+  
++ static bfd_vma
++ get_r2off (struct ppc_link_hash_table *htab,
++ 	   struct ppc_stub_hash_entry *stub_entry)
++ {
++   bfd_vma r2off = htab->stub_group[stub_entry->target_section->id].toc_off;
++ 
++   if (r2off == 0)
++     {
++       /* Support linking -R objects.  Get the toc pointer from the
++ 	 opd entry.  */
++       char buf[8];
++       asection *opd = stub_entry->h->elf.root.u.def.section;
++       bfd_vma opd_off = stub_entry->h->elf.root.u.def.value;
++ 
++       if (strcmp (opd->name, ".opd") != 0
++ 	  || opd->reloc_count != 0)
++ 	{
++ 	  (*_bfd_error_handler) (_("cannot find opd entry toc for %s"),
++ 				 stub_entry->h->elf.root.root.string);
++ 	  bfd_set_error (bfd_error_bad_value);
++ 	  return 0;
++ 	}
++       if (!bfd_get_section_contents (opd->owner, opd, buf, opd_off + 8, 8))
++ 	return 0;
++       r2off = bfd_get_64 (opd->owner, buf);
++       r2off -= elf_gp (stub_entry->id_sec->output_section->owner);
++     }
++   r2off -= htab->stub_group[stub_entry->id_sec->id].toc_off;
++   return r2off;
++ }
++ 
+  static bfd_boolean
+  ppc_build_one_stub (struct bfd_hash_entry *gen_entry, void *in_arg)
+  {
+*************** ppc_build_one_stub (struct bfd_hash_entr
+*** 9452,9461 ****
+        size = 4;
+        if (stub_entry->stub_type == ppc_stub_long_branch_r2off)
+  	{
+! 	  bfd_vma r2off;
+  
+! 	  r2off = (htab->stub_group[stub_entry->target_section->id].toc_off
+! 		   - htab->stub_group[stub_entry->id_sec->id].toc_off);
+  	  bfd_put_32 (htab->stub_bfd, STD_R2_40R1, loc);
+  	  loc += 4;
+  	  size = 12;
+--- 9894,9906 ----
+        size = 4;
+        if (stub_entry->stub_type == ppc_stub_long_branch_r2off)
+  	{
+! 	  bfd_vma r2off = get_r2off (htab, stub_entry);
+  
+! 	  if (r2off == 0)
+! 	    {
+! 	      htab->stub_error = TRUE;
+! 	      return FALSE;
+! 	    }
+  	  bfd_put_32 (htab->stub_bfd, STD_R2_40R1, loc);
+  	  loc += 4;
+  	  size = 12;
+*************** ppc_build_one_stub (struct bfd_hash_entr
+*** 9639,9648 ****
+  	}
+        else
+  	{
+! 	  bfd_vma r2off;
+  
+- 	  r2off = (htab->stub_group[stub_entry->target_section->id].toc_off
+- 		   - htab->stub_group[stub_entry->id_sec->id].toc_off);
+  	  bfd_put_32 (htab->stub_bfd, STD_R2_40R1, loc);
+  	  loc += 4;
+  	  size = 20;
+--- 10084,10097 ----
+  	}
+        else
+  	{
+! 	  bfd_vma r2off = get_r2off (htab, stub_entry);
+! 
+! 	  if (r2off == 0)
+! 	    {
+! 	      htab->stub_error = TRUE;
+! 	      return FALSE;
+! 	    }
+  
+  	  bfd_put_32 (htab->stub_bfd, STD_R2_40R1, loc);
+  	  loc += 4;
+  	  size = 20;
+*************** ppc_build_one_stub (struct bfd_hash_entr
+*** 9675,9680 ****
+--- 10124,10130 ----
+        break;
+  
+      case ppc_stub_plt_call:
++     case ppc_stub_plt_call_r2save:
+        if (stub_entry->h != NULL
+  	  && stub_entry->h->is_func_descriptor
+  	  && stub_entry->h->oh != NULL)
+*************** ppc_build_one_stub (struct bfd_hash_entr
+*** 9741,9752 ****
+  	  return FALSE;
+  	}
+  
+        r = NULL;
+        if (info->emitrelocations)
+  	{
+  	  r = get_relocs (stub_entry->stub_sec,
+! 			  (2 + (PPC_HA (off) != 0)
+! 			   + (PPC_HA (off + 16) == PPC_HA (off))));
+  	  if (r == NULL)
+  	    return FALSE;
+  	  r[0].r_offset = loc - stub_entry->stub_sec->contents;
+--- 10191,10213 ----
+  	  return FALSE;
+  	}
+  
++       if (htab->plt_stub_align != 0)
++ 	{
++ 	  unsigned pad = plt_stub_pad (htab, stub_entry, off);
++ 
++ 	  stub_entry->stub_sec->size += pad;
++ 	  stub_entry->stub_offset = stub_entry->stub_sec->size;
++ 	  loc += pad;
++ 	}
++ 
+        r = NULL;
+        if (info->emitrelocations)
+  	{
+  	  r = get_relocs (stub_entry->stub_sec,
+! 			  (2
+! 			   + (PPC_HA (off) != 0)
+! 			   + (htab->plt_static_chain
+! 			      && PPC_HA (off + 16) == PPC_HA (off))));
+  	  if (r == NULL)
+  	    return FALSE;
+  	  r[0].r_offset = loc - stub_entry->stub_sec->contents;
+*************** ppc_build_one_stub (struct bfd_hash_entr
+*** 9758,9766 ****
+  	  && (stub_entry->h == htab->tls_get_addr_fd
+  	      || stub_entry->h == htab->tls_get_addr)
+  	  && !htab->no_tls_get_addr_opt)
+! 	p = build_tls_get_addr_stub (htab->stub_bfd, loc, off, r);
+        else
+! 	p = build_plt_stub (htab->stub_bfd, loc, off, r);
+        size = p - loc;
+        break;
+  
+--- 10219,10227 ----
+  	  && (stub_entry->h == htab->tls_get_addr_fd
+  	      || stub_entry->h == htab->tls_get_addr)
+  	  && !htab->no_tls_get_addr_opt)
+! 	p = build_tls_get_addr_stub (htab, stub_entry, loc, off, r);
+        else
+! 	p = build_plt_stub (htab, stub_entry, loc, off, r);
+        size = p - loc;
+        break;
+  
+*************** ppc_build_one_stub (struct bfd_hash_entr
+*** 9780,9785 ****
+--- 10241,10247 ----
+  				       "long_branch_r2off",
+  				       "plt_branch",
+  				       "plt_branch_r2off",
++ 				       "plt_call",
+  				       "plt_call" };
+  
+        len1 = strlen (stub_str[stub_entry->stub_type - 1]);
+*************** ppc_size_one_stub (struct bfd_hash_entry
+*** 9830,9836 ****
+    if (htab == NULL)
+      return FALSE;
+  
+!   if (stub_entry->stub_type == ppc_stub_plt_call)
+      {
+        asection *plt;
+        off = stub_entry->plt_ent->plt.offset & ~(bfd_vma) 1;
+--- 10292,10299 ----
+    if (htab == NULL)
+      return FALSE;
+  
+!   if (stub_entry->stub_type == ppc_stub_plt_call
+!       || stub_entry->stub_type == ppc_stub_plt_call_r2save)
+      {
+        asection *plt;
+        off = stub_entry->plt_ent->plt.offset & ~(bfd_vma) 1;
+*************** ppc_size_one_stub (struct bfd_hash_entry
+*** 9846,9865 ****
+  	      - elf_gp (plt->output_section->owner)
+  	      - htab->stub_group[stub_entry->id_sec->id].toc_off);
+  
+!       size = PLT_CALL_STUB_SIZE;
+!       if (PPC_HA (off) == 0)
+! 	size -= 4;
+!       if (PPC_HA (off + 16) != PPC_HA (off))
+! 	size += 4;
+!       if (stub_entry->h != NULL
+! 	  && (stub_entry->h == htab->tls_get_addr_fd
+! 	      || stub_entry->h == htab->tls_get_addr)
+! 	  && !htab->no_tls_get_addr_opt)
+! 	size += 13 * 4;
+        if (info->emitrelocations)
+  	{
+  	  stub_entry->stub_sec->reloc_count
+! 	    += 2 + (PPC_HA (off) != 0) + (PPC_HA (off + 16) == PPC_HA (off));
+  	  stub_entry->stub_sec->flags |= SEC_RELOC;
+  	}
+      }
+--- 10309,10324 ----
+  	      - elf_gp (plt->output_section->owner)
+  	      - htab->stub_group[stub_entry->id_sec->id].toc_off);
+  
+!       size = plt_stub_size (htab, stub_entry, off);
+!       if (htab->plt_stub_align)
+! 	size += plt_stub_pad (htab, stub_entry, off);
+        if (info->emitrelocations)
+  	{
+  	  stub_entry->stub_sec->reloc_count
+! 	    += (2
+! 		+ (PPC_HA (off) != 0)
+! 		+ (htab->plt_static_chain
+! 		   && PPC_HA (off + 16) == PPC_HA (off)));
+  	  stub_entry->stub_sec->flags |= SEC_RELOC;
+  	}
+      }
+*************** ppc_size_one_stub (struct bfd_hash_entry
+*** 9884,9891 ****
+        size = 4;
+        if (stub_entry->stub_type == ppc_stub_long_branch_r2off)
+  	{
+! 	  r2off = (htab->stub_group[stub_entry->target_section->id].toc_off
+! 		   - htab->stub_group[stub_entry->id_sec->id].toc_off);
+  	  size = 12;
+  	  if (PPC_HA (r2off) != 0)
+  	    size = 16;
+--- 10343,10354 ----
+        size = 4;
+        if (stub_entry->stub_type == ppc_stub_long_branch_r2off)
+  	{
+! 	  r2off = get_r2off (htab, stub_entry);
+! 	  if (r2off == 0)
+! 	    {
+! 	      htab->stub_error = TRUE;
+! 	      return FALSE;
+! 	    }
+  	  size = 12;
+  	  if (PPC_HA (r2off) != 0)
+  	    size = 16;
+*************** group_sections (struct ppc_link_hash_tab
+*** 10791,10797 ****
+     instruction.  */
+  
+  bfd_boolean
+! ppc64_elf_size_stubs (struct bfd_link_info *info, bfd_signed_vma group_size)
+  {
+    bfd_size_type stub_group_size;
+    bfd_boolean stubs_always_before_branch;
+--- 11254,11262 ----
+     instruction.  */
+  
+  bfd_boolean
+! ppc64_elf_size_stubs (struct bfd_link_info *info, bfd_signed_vma group_size,
+! 		      bfd_boolean plt_static_chain, int plt_thread_safe,
+! 		      int plt_stub_align)
+  {
+    bfd_size_type stub_group_size;
+    bfd_boolean stubs_always_before_branch;
+*************** ppc64_elf_size_stubs (struct bfd_link_in
+*** 10800,10805 ****
+--- 11265,11305 ----
+    if (htab == NULL)
+      return FALSE;
+  
++   htab->plt_static_chain = plt_static_chain;
++   htab->plt_stub_align = plt_stub_align;
++   if (plt_thread_safe == -1)
++     {
++       const char *const thread_starter[] =
++ 	{
++ 	  "pthread_create",
++ 	  /* libstdc++ */
++ 	  "_ZNSt6thread15_M_start_threadESt10shared_ptrINS_10_Impl_baseEE",
++ 	  /* librt */
++ 	  "aio_init", "aio_read", "aio_write", "aio_fsync", "lio_listio",
++ 	  "mq_notify", "create_timer",
++ 	  /* libanl */
++ 	  "getaddrinfo_a",
++ 	  /* libgomp */
++ 	  "GOMP_parallel_start",
++ 	  "GOMP_parallel_loop_static_start",
++ 	  "GOMP_parallel_loop_dynamic_start",
++ 	  "GOMP_parallel_loop_guided_start",
++ 	  "GOMP_parallel_loop_runtime_start",
++ 	  "GOMP_parallel_sections_start", 
++ 	};
++       unsigned i;
++ 
++       for (i = 0; i < sizeof (thread_starter)/ sizeof (thread_starter[0]); i++)
++ 	{
++ 	  struct elf_link_hash_entry *h;
++ 	  h = elf_link_hash_lookup (&htab->elf, thread_starter[i],
++ 				    FALSE, FALSE, TRUE);
++ 	  plt_thread_safe = h != NULL && h->ref_regular;
++ 	  if (plt_thread_safe)
++ 	    break;
++ 	}
++     }
++   htab->plt_thread_safe = plt_thread_safe;
+    stubs_always_before_branch = group_size < 0;
+    if (group_size < 0)
+      stub_group_size = -group_size;
+*************** ppc64_elf_size_stubs (struct bfd_link_in
+*** 11031,11036 ****
+--- 11531,11548 ----
+  			continue;
+  		    }
+  
++ 		  if (stub_type == ppc_stub_plt_call
++ 		      && irela + 1 < irelaend
++ 		      && irela[1].r_offset == irela->r_offset + 4
++ 		      && ELF64_R_TYPE (irela[1].r_info) == R_PPC64_TOCSAVE)
++ 		    {
++ 		      if (!tocsave_find (htab, INSERT,
++ 					 &local_syms, irela + 1, input_bfd))
++ 			goto error_ret_free_internal;
++ 		    }
++ 		  else if (stub_type == ppc_stub_plt_call)
++ 		    stub_type = ppc_stub_plt_call_r2save;
++ 
+  		  /* Support for grouping stub sections.  */
+  		  id_sec = htab->stub_group[section->id].link_sec;
+  
+*************** ppc64_elf_size_stubs (struct bfd_link_in
+*** 11045,11050 ****
+--- 11557,11564 ----
+  		    {
+  		      /* The proper stub has already been created.  */
+  		      free (stub_name);
++ 		      if (stub_type == ppc_stub_plt_call_r2save)
++ 			stub_entry->stub_type = stub_type;
+  		      continue;
+  		    }
+  
+*************** ppc64_elf_size_stubs (struct bfd_link_in
+*** 11064,11070 ****
+  		    }
+  
+  		  stub_entry->stub_type = stub_type;
+! 		  if (stub_type != ppc_stub_plt_call)
+  		    {
+  		      stub_entry->target_value = code_value;
+  		      stub_entry->target_section = code_sec;
+--- 11578,11585 ----
+  		    }
+  
+  		  stub_entry->stub_type = stub_type;
+! 		  if (stub_type != ppc_stub_plt_call
+! 		      && stub_type != ppc_stub_plt_call_r2save)
+  		    {
+  		      stub_entry->target_value = code_value;
+  		      stub_entry->target_section = code_sec;
+*************** ppc64_elf_size_stubs (struct bfd_link_in
+*** 11125,11130 ****
+--- 11640,11653 ----
+  	  htab->glink->flags |= SEC_RELOC;
+  	}
+  
++       if (htab->plt_stub_align != 0)
++ 	for (stub_sec = htab->stub_bfd->sections;
++ 	     stub_sec != NULL;
++ 	     stub_sec = stub_sec->next)
++ 	  if ((stub_sec->flags & SEC_LINKER_CREATED) == 0)
++ 	    stub_sec->size = ((stub_sec->size + (1 << htab->plt_stub_align) - 1)
++ 			      & (-1 << htab->plt_stub_align));
++ 
+        for (stub_sec = htab->stub_bfd->sections;
+  	   stub_sec != NULL;
+  	   stub_sec = stub_sec->next)
+*************** ppc64_elf_build_stubs (bfd_boolean emit_
+*** 11355,11360 ****
+--- 11878,11891 ----
+    if (htab->relbrlt != NULL)
+      htab->relbrlt->reloc_count = 0;
+  
++   if (htab->plt_stub_align != 0)
++     for (stub_sec = htab->stub_bfd->sections;
++ 	 stub_sec != NULL;
++ 	 stub_sec = stub_sec->next)
++       if ((stub_sec->flags & SEC_LINKER_CREATED) == 0)
++ 	stub_sec->size = ((stub_sec->size + (1 << htab->plt_stub_align) - 1)
++ 			  & (-1 << htab->plt_stub_align));
++ 
+    for (stub_sec = htab->stub_bfd->sections;
+         stub_sec != NULL;
+         stub_sec = stub_sec->next)
+*************** ppc64_elf_build_stubs (bfd_boolean emit_
+*** 11386,11399 ****
+  			 "  toc adjust   %lu\n"
+  			 "  long branch  %lu\n"
+  			 "  long toc adj %lu\n"
+! 			 "  plt call     %lu"),
+  	       stub_sec_count,
+  	       stub_sec_count == 1 ? "" : "s",
+  	       htab->stub_count[ppc_stub_long_branch - 1],
+  	       htab->stub_count[ppc_stub_long_branch_r2off - 1],
+  	       htab->stub_count[ppc_stub_plt_branch - 1],
+  	       htab->stub_count[ppc_stub_plt_branch_r2off - 1],
+! 	       htab->stub_count[ppc_stub_plt_call - 1]);
+      }
+    return TRUE;
+  }
+--- 11917,11932 ----
+  			 "  toc adjust   %lu\n"
+  			 "  long branch  %lu\n"
+  			 "  long toc adj %lu\n"
+! 			 "  plt call     %lu\n"
+! 			 "  plt call toc %lu"),
+  	       stub_sec_count,
+  	       stub_sec_count == 1 ? "" : "s",
+  	       htab->stub_count[ppc_stub_long_branch - 1],
+  	       htab->stub_count[ppc_stub_long_branch_r2off - 1],
+  	       htab->stub_count[ppc_stub_plt_branch - 1],
+  	       htab->stub_count[ppc_stub_plt_branch_r2off - 1],
+! 	       htab->stub_count[ppc_stub_plt_call - 1],
+! 	       htab->stub_count[ppc_stub_plt_call_r2save - 1]);
+      }
+    return TRUE;
+  }
+*************** ppc64_elf_action_discarded (asection *se
+*** 11446,11508 ****
+    return _bfd_elf_default_action_discarded (sec);
+  }
+  
+- /* REL points to a low-part reloc on a largetoc instruction sequence.
+-    Find the matching high-part reloc instruction and verify that it
+-    is addis REG,x,imm.  If so, set *REG to x and return a pointer to
+-    the high-part reloc.  */
+- 
+- static const Elf_Internal_Rela *
+- ha_reloc_match (const Elf_Internal_Rela *relocs,
+- 		const Elf_Internal_Rela *rel,
+- 		unsigned int *reg,
+- 		bfd_boolean match_addend,
+- 		const bfd *input_bfd,
+- 		const bfd_byte *contents)
+- {
+-   enum elf_ppc64_reloc_type r_type, r_type_ha;
+-   bfd_vma r_info_ha, r_addend;
+- 
+-   r_type = ELF64_R_TYPE (rel->r_info);
+-   switch (r_type)
+-     {
+-     case R_PPC64_GOT_TLSLD16_LO:
+-     case R_PPC64_GOT_TLSGD16_LO:
+-     case R_PPC64_GOT_TPREL16_LO_DS:
+-     case R_PPC64_GOT_DTPREL16_LO_DS:
+-     case R_PPC64_GOT16_LO:
+-     case R_PPC64_TOC16_LO:
+-       r_type_ha = r_type + 2;
+-       break;
+-     case R_PPC64_GOT16_LO_DS:
+-       r_type_ha = R_PPC64_GOT16_HA;
+-       break;
+-     case R_PPC64_TOC16_LO_DS:
+-       r_type_ha = R_PPC64_TOC16_HA;
+-       break;
+-     default:
+-       abort ();
+-     }
+-   r_info_ha = ELF64_R_INFO (ELF64_R_SYM (rel->r_info), r_type_ha);
+-   r_addend = rel->r_addend;
+- 
+-   while (--rel >= relocs)
+-     if (rel->r_info == r_info_ha
+- 	&& (!match_addend
+- 	    || rel->r_addend == r_addend))
+-       {
+- 	const bfd_byte *p = contents + (rel->r_offset & ~3);
+- 	unsigned int insn = bfd_get_32 (input_bfd, p);
+- 	if ((insn & (0x3f << 26)) == (15u << 26) /* addis rt,x,imm */
+- 	    && (insn & (0x1f << 21)) == (*reg << 21))
+- 	  {
+- 	    *reg = (insn >> 16) & 0x1f;
+- 	    return rel;
+- 	  }
+- 	break;
+-       }
+-   return NULL;
+- }
+- 
+  /* The RELOCATE_SECTION function is called by the ELF backend linker
+     to handle the relocations for a section.
+  
+--- 11979,11984 ----
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 11550,11562 ****
+    Elf_Internal_Rela outrel;
+    bfd_byte *loc;
+    struct got_entry **local_got_ents;
+-   unsigned char *ha_opt;
+    bfd_vma TOCstart;
+-   bfd_boolean no_ha_opt;
+    bfd_boolean ret = TRUE;
+    bfd_boolean is_opd;
+!   /* Disabled until we sort out how ld should choose 'y' vs 'at'.  */
+!   bfd_boolean is_power4 = FALSE;
+    bfd_vma d_offset = (bfd_big_endian (output_bfd) ? 2 : 0);
+  
+    /* Initialize howto table if needed.  */
+--- 12026,12036 ----
+    Elf_Internal_Rela outrel;
+    bfd_byte *loc;
+    struct got_entry **local_got_ents;
+    bfd_vma TOCstart;
+    bfd_boolean ret = TRUE;
+    bfd_boolean is_opd;
+!   /* Assume 'at' branch hints.  */
+!   bfd_boolean is_isa_v2 = TRUE;
+    bfd_vma d_offset = (bfd_big_endian (output_bfd) ? 2 : 0);
+  
+    /* Initialize howto table if needed.  */
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 11578,11585 ****
+    symtab_hdr = &elf_symtab_hdr (input_bfd);
+    sym_hashes = elf_sym_hashes (input_bfd);
+    is_opd = ppc64_elf_section_data (input_section)->sec_type == sec_opd;
+-   ha_opt = NULL;
+-   no_ha_opt = FALSE;
+  
+    rel = relocs;
+    relend = relocs + input_section->reloc_count;
+--- 12052,12057 ----
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 12147,12152 ****
+--- 12619,12639 ----
+  	default:
+  	  break;
+  
++ 	case R_PPC64_TOCSAVE:
++ 	  if (relocation + addend == (rel->r_offset
++ 				      + input_section->output_offset
++ 				      + input_section->output_section->vma)
++ 	      && tocsave_find (htab, NO_INSERT,
++ 			       &local_syms, rel, input_bfd))
++ 	    {
++ 	      insn = bfd_get_32 (input_bfd, contents + rel->r_offset);
++ 	      if (insn == NOP
++ 		  || insn == CROR_151515 || insn == CROR_313131)
++ 		bfd_put_32 (input_bfd, STD_R2_40R1,
++ 			    contents + rel->r_offset);
++ 	    }
++ 	  break;
++ 
+  	  /* Branch taken prediction relocations.  */
+  	case R_PPC64_ADDR14_BRTAKEN:
+  	case R_PPC64_REL14_BRTAKEN:
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 12179,12184 ****
+--- 12666,12672 ----
+  	  stub_entry = ppc_get_stub_entry (input_section, sec, fdh, rel, htab);
+  	  if (stub_entry != NULL
+  	      && (stub_entry->stub_type == ppc_stub_plt_call
++ 		  || stub_entry->stub_type == ppc_stub_plt_call_r2save
+  		  || stub_entry->stub_type == ppc_stub_plt_branch_r2off
+  		  || stub_entry->stub_type == ppc_stub_long_branch_r2off))
+  	    {
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 12207,12213 ****
+  
+  	      if (!can_plt_call)
+  		{
+! 		  if (stub_entry->stub_type == ppc_stub_plt_call)
+  		    {
+  		      /* If this is a plain branch rather than a branch
+  			 and link, don't require a nop.  However, don't
+--- 12695,12702 ----
+  
+  	      if (!can_plt_call)
+  		{
+! 		  if (stub_entry->stub_type == ppc_stub_plt_call
+! 		      || stub_entry->stub_type == ppc_stub_plt_call_r2save)
+  		    {
+  		      /* If this is a plain branch rather than a branch
+  			 and link, don't require a nop.  However, don't
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 12258,12264 ****
+  		}
+  
+  	      if (can_plt_call
+! 		  && stub_entry->stub_type == ppc_stub_plt_call)
+  		unresolved_reloc = FALSE;
+  	    }
+  
+--- 12747,12754 ----
+  		}
+  
+  	      if (can_plt_call
+! 		  && (stub_entry->stub_type == ppc_stub_plt_call
+! 		      || stub_entry->stub_type == ppc_stub_plt_call_r2save))
+  		unresolved_reloc = FALSE;
+  	    }
+  
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 12303,12313 ****
+  			    + stub_entry->stub_sec->output_offset
+  			    + stub_entry->stub_sec->output_section->vma);
+  	      addend = 0;
+  	    }
+  
+  	  if (insn != 0)
+  	    {
+! 	      if (is_power4)
+  		{
+  		  /* Set 'a' bit.  This is 0b00010 in BO field for branch
+  		     on CR(BI) insns (BO == 001at or 011at), and 0b01000
+--- 12793,12812 ----
+  			    + stub_entry->stub_sec->output_offset
+  			    + stub_entry->stub_sec->output_section->vma);
+  	      addend = 0;
++ 
++  	      if ((stub_entry->stub_type == ppc_stub_plt_call
++ 		   || stub_entry->stub_type == ppc_stub_plt_call_r2save)
++ 		  && (ALWAYS_EMIT_R2SAVE
++ 		      || stub_entry->stub_type == ppc_stub_plt_call_r2save)
++ 		  && rel + 1 < relend
++ 		  && rel[1].r_offset == rel->r_offset + 4
++ 		  && ELF64_R_TYPE (rel[1].r_info) == R_PPC64_TOCSAVE)
++ 		relocation += 4;
+  	    }
+  
+  	  if (insn != 0)
+  	    {
+! 	      if (is_isa_v2)
+  		{
+  		  /* Set 'a' bit.  This is 0b00010 in BO field for branch
+  		     on CR(BI) insns (BO == 001at or 011at), and 0b01000
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 12362,12367 ****
+--- 12861,12867 ----
+  	case R_PPC64_TLS:
+  	case R_PPC64_TLSGD:
+  	case R_PPC64_TLSLD:
++ 	case R_PPC64_TOCSAVE:
+  	case R_PPC64_GNU_VTINHERIT:
+  	case R_PPC64_GNU_VTENTRY:
+  	  continue;
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 13008,13014 ****
+  	case R_PPC64_GOT_DTPREL16_HA:
+  	case R_PPC64_GOT16_HA:
+  	case R_PPC64_TOC16_HA:
+! 	  /* nop is done later.  */
+  	  break;
+  
+  	case R_PPC64_GOT_TLSLD16_LO:
+--- 13508,13519 ----
+  	case R_PPC64_GOT_DTPREL16_HA:
+  	case R_PPC64_GOT16_HA:
+  	case R_PPC64_TOC16_HA:
+! 	  if (htab->do_toc_opt && relocation + addend + 0x8000 < 0x10000
+! 	      && !ppc64_elf_tdata (input_bfd)->unexpected_toc_insn)
+! 	    {
+! 	      bfd_byte *p = contents + (rel->r_offset & ~3);
+! 	      bfd_put_32 (input_bfd, NOP, p);
+! 	    }
+  	  break;
+  
+  	case R_PPC64_GOT_TLSLD16_LO:
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 13019,13074 ****
+  	case R_PPC64_GOT16_LO_DS:
+  	case R_PPC64_TOC16_LO:
+  	case R_PPC64_TOC16_LO_DS:
+! 	  if (htab->do_toc_opt && relocation + addend + 0x8000 < 0x10000)
+  	    {
+  	      bfd_byte *p = contents + (rel->r_offset & ~3);
+  	      insn = bfd_get_32 (input_bfd, p);
+! 	      if ((insn & (0x3f << 26)) == 14u << 26 /* addi */
+! 		  || (insn & (0x3f << 26)) == 32u << 26 /* lwz */
+! 		  || (insn & (0x3f << 26)) == 34u << 26 /* lbz */
+! 		  || (insn & (0x3f << 26)) == 36u << 26 /* stw */
+! 		  || (insn & (0x3f << 26)) == 38u << 26 /* stb */
+! 		  || (insn & (0x3f << 26)) == 40u << 26 /* lhz */
+! 		  || (insn & (0x3f << 26)) == 42u << 26 /* lha */
+! 		  || (insn & (0x3f << 26)) == 44u << 26 /* sth */
+! 		  || (insn & (0x3f << 26)) == 46u << 26 /* lmw */
+! 		  || (insn & (0x3f << 26)) == 47u << 26 /* stmw */
+! 		  || (insn & (0x3f << 26)) == 48u << 26 /* lfs */
+! 		  || (insn & (0x3f << 26)) == 50u << 26 /* lfd */
+! 		  || (insn & (0x3f << 26)) == 52u << 26 /* stfs */
+! 		  || (insn & (0x3f << 26)) == 54u << 26 /* stfd */
+! 		  || ((insn & (0x3f << 26)) == 58u << 26 /* lwa,ld,lmd */
+! 		      && (insn & 3) != 1)
+! 		  || ((insn & (0x3f << 26)) == 62u << 26 /* std, stmd */
+! 		      && ((insn & 3) == 0 || (insn & 3) == 3)))
+! 		{
+! 		  unsigned int reg = (insn >> 16) & 0x1f;
+! 		  const Elf_Internal_Rela *ha;
+! 		  bfd_boolean match_addend;
+! 
+! 		  match_addend = (sym != NULL
+! 				  && ELF_ST_TYPE (sym->st_info) == STT_SECTION);
+! 		  ha = ha_reloc_match (relocs, rel, &reg, match_addend,
+! 				       input_bfd, contents);
+! 		  if (ha != NULL)
+! 		    {
+! 		      insn &= ~(0x1f << 16);
+! 		      insn |= reg << 16;
+! 		      bfd_put_32 (input_bfd, insn, p);
+! 		      if (ha_opt == NULL)
+! 			{
+! 			  ha_opt = bfd_zmalloc (input_section->reloc_count);
+! 			  if (ha_opt == NULL)
+! 			    return FALSE;
+! 			}
+! 		      ha_opt[ha - relocs] = 1;
+! 		    }
+! 		  else
+! 		    /* If we don't find a matching high part insn,
+! 		       something is fishy.  Refuse to nop any high
+! 		       part insn in this section.  */
+! 		    no_ha_opt = TRUE;
+  		}
+  	    }
+  	  break;
+  	}
+--- 13524,13546 ----
+  	case R_PPC64_GOT16_LO_DS:
+  	case R_PPC64_TOC16_LO:
+  	case R_PPC64_TOC16_LO_DS:
+! 	  if (htab->do_toc_opt && relocation + addend + 0x8000 < 0x10000
+! 	      && !ppc64_elf_tdata (input_bfd)->unexpected_toc_insn)
+  	    {
+  	      bfd_byte *p = contents + (rel->r_offset & ~3);
+  	      insn = bfd_get_32 (input_bfd, p);
+! 	      if ((insn & (0x3f << 26)) == 12u << 26 /* addic */)
+! 		{
+! 		  /* Transform addic to addi when we change reg.  */
+! 		  insn &= ~((0x3f << 26) | (0x1f << 16));
+! 		  insn |= (14u << 26) | (2 << 16);
+! 		}
+! 	      else
+! 		{
+! 		  insn &= ~(0x1f << 16);
+! 		  insn |= 2 << 16;
+  		}
++ 	      bfd_put_32 (input_bfd, insn, p);
+  	    }
+  	  break;
+  	}
+*************** ppc64_elf_relocate_section (bfd *output_
+*** 13225,13247 ****
+  	}
+      }
+  
+-   if (ha_opt != NULL)
+-     {
+-       if (!no_ha_opt)
+- 	{
+- 	  unsigned char *opt = ha_opt;
+- 	  rel = relocs;
+- 	  relend = relocs + input_section->reloc_count;
+- 	  for (; rel < relend; opt++, rel++)
+- 	    if (*opt != 0)
+- 	      {
+- 		bfd_byte *p = contents + (rel->r_offset & ~3);
+- 		bfd_put_32 (input_bfd, NOP, p);
+- 	      }
+- 	}
+-       free (ha_opt);
+-     }
+- 
+    /* If we're emitting relocations, then shortly after this function
+       returns, reloc offsets and addends for this section will be
+       adjusted.  Worse, reloc symbol indices will be for the output
+--- 13697,13702 ----
+diff -rcp ../binutils-2.20.51.0.2.orig/bfd/elf64-ppc.h ./bfd/elf64-ppc.h
+*** ../binutils-2.20.51.0.2.orig/bfd/elf64-ppc.h	2012-04-26 22:03:49.371596763 +0930
+--- ./bfd/elf64-ppc.h	2012-04-26 21:23:20.085052428 +0930
+***************
+*** 1,5 ****
+  /* PowerPC64-specific support for 64-bit ELF.
+!    Copyright 2002, 2003, 2004, 2005, 2007, 2008
+     Free Software Foundation, Inc.
+  
+     This file is part of BFD, the Binary File Descriptor library.
+--- 1,5 ----
+  /* PowerPC64-specific support for 64-bit ELF.
+!    Copyright 2002, 2003, 2004, 2005, 2007, 2008, 2010, 2011, 2012
+     Free Software Foundation, Inc.
+  
+     This file is part of BFD, the Binary File Descriptor library.
+*************** bfd_boolean ppc64_elf_check_init_fini
+*** 49,55 ****
+  bfd_boolean ppc64_elf_next_input_section
+    (struct bfd_link_info *, asection *);
+  bfd_boolean ppc64_elf_size_stubs
+!   (struct bfd_link_info *, bfd_signed_vma);
+  bfd_boolean ppc64_elf_build_stubs
+    (bfd_boolean, struct bfd_link_info *, char **);
+  void ppc64_elf_restore_symbols
+--- 49,55 ----
+  bfd_boolean ppc64_elf_next_input_section
+    (struct bfd_link_info *, asection *);
+  bfd_boolean ppc64_elf_size_stubs
+!   (struct bfd_link_info *, bfd_signed_vma, bfd_boolean, int, int);
+  bfd_boolean ppc64_elf_build_stubs
+    (bfd_boolean, struct bfd_link_info *, char **);
+  void ppc64_elf_restore_symbols
+diff -rcp ../binutils-2.20.51.0.2.orig/bfd/reloc.c ./bfd/reloc.c
+*** ../binutils-2.20.51.0.2.orig/bfd/reloc.c	2012-04-26 22:03:49.371596763 +0930
+--- ./bfd/reloc.c	2012-04-26 21:17:44.783595753 +0930
+*************** CODE_FRAGMENT
+*** 305,314 ****
+  .      when doing overflow checking.  *}
+  .  unsigned int bitsize;
+  .
+! .  {*  Notes that the relocation is relative to the location in the
+! .      data section of the addend.  The relocation function will
+! .      subtract from the relocation value the address of the location
+! .      being relocated.  *}
+  .  bfd_boolean pc_relative;
+  .
+  .  {*  The bit position of the reloc value in the destination.
+--- 305,311 ----
+  .      when doing overflow checking.  *}
+  .  unsigned int bitsize;
+  .
+! .  {*  The relocation is relative to the field being relocated.  *}
+  .  bfd_boolean pc_relative;
+  .
+  .  {*  The bit position of the reloc value in the destination.
+diff -rcp ../binutils-2.20.51.0.2.orig/include/elf/ppc64.h ./include/elf/ppc64.h
+*** ../binutils-2.20.51.0.2.orig/include/elf/ppc64.h	2012-04-26 22:03:49.371596763 +0930
+--- ./include/elf/ppc64.h	2012-04-26 21:23:20.071910803 +0930
+***************
+*** 1,5 ****
+  /* PPC64 ELF support for BFD.
+!    Copyright 2003, 2005, 2009 Free Software Foundation, Inc.
+  
+  This file is part of BFD, the Binary File Descriptor library.
+  
+--- 1,5 ----
+  /* PPC64 ELF support for BFD.
+!    Copyright 2003, 2005, 2009, 2010, 2011 Free Software Foundation, Inc.
+  
+  This file is part of BFD, the Binary File Descriptor library.
+  
+*************** START_RELOC_NUMBERS (elf_ppc64_reloc_typ
+*** 138,143 ****
+--- 138,144 ----
+    RELOC_NUMBER (R_PPC64_DTPREL16_HIGHESTA, 106)
+    RELOC_NUMBER (R_PPC64_TLSGD,		   107)
+    RELOC_NUMBER (R_PPC64_TLSLD,		   108)
++   RELOC_NUMBER (R_PPC64_TOCSAVE,	   109)
+  
+  #ifndef RELOC_MACROS_GEN_FUNC
+  /* Fake relocation only used internally by ld.  */
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/configure.host ./ld/configure.host
+*** ../binutils-2.20.51.0.2.orig/ld/configure.host	2012-04-26 22:03:49.371596763 +0930
+--- ./ld/configure.host	2012-04-26 21:17:44.775345124 +0930
+*************** case "${host}" in
+*** 85,96 ****
+    # No further tweaking needed
+    ;;
+  
+- am33_2.0-*-linux*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,ld\[^ \]\*,ld-linux,g"`
+-   ;;
+- 
+  arm*-*-linux-*)
+!   HOSTING_CRT0='-p '`echo "$HOSTING_CRT0" | sed -e "s,ld\[^ \]\*,ld-linux,g"`
+    ;;
+  
+  hppa*64*-*-hpux11*)
+--- 85,92 ----
+    # No further tweaking needed
+    ;;
+  
+  arm*-*-linux-*)
+!   HOSTING_CRT0='-p '"$HOSTING_CRT0"
+    ;;
+  
+  hppa*64*-*-hpux11*)
+*************** i[3-7]86-*-mingw*)
+*** 153,162 ****
+    HOSTING_LIBS='-L/mingw/lib -lmingw32 -lmoldname -lmingwex -lmsvcrt -luser32 -lkernel32 -ladvapi32 -lshell32 -lmingw32 -lmoldname -lmingwex -lmsvcrt `if [ -f ../gcc/libgcc.a ] ; then echo ../gcc/libgcc.a ; else ${CC} -print-libgcc-file-name; fi`'
+    ;; 
+  
+- ia64-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,ld\[^ \]*\*,ld-linux-ia64,g"`
+-   ;;
+- 
+  mips*-sgi-irix4* | mips*-sgi-irix5*)
+    HOSTING_CRT0=/usr/lib/crt1.o
+    HOSTING_LIBS="$HOSTING_LIBS"' /usr/lib/crtn.o'
+--- 149,154 ----
+*************** mips*-sgi-irix6*)
+*** 167,183 ****
+    HOSTING_LIBS='-L/usr/lib32 '"$HOSTING_LIBS"' `if [ -f ../gcc/crtend.o ]; then echo ../gcc/crtend.o ; else ${CC} -print-file-name=crtend.o; fi` /usr/lib32/crtn.o -init __do_global_ctors -fini __do_global_dtors'
+    ;;
+  
+- mips*-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib/ld.so.1,"`
+-   ;;
+- 
+- m68*-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib/ld.so.1,"`
+-   ;;
+- 
+  m68*-motorola-sysv)
+    HOSTING_CRT0='`if [ -f ../gcc/crt0.o ]; then echo ../gcc/crt0.o; elif [ -f \`${CC} -print-file-name=\`crt0.o ]; then echo \`${CC} -print-file-name=\`crt0.o; else echo /lib/crt0.o; fi`'
+!   HOSTING_LIBS=`echo "$HOSTING_LIBS" | sed -e "s,-lc,-lc881,"`
+    ;;
+  
+  m68*-sun-*)
+--- 159,169 ----
+    HOSTING_LIBS='-L/usr/lib32 '"$HOSTING_LIBS"' `if [ -f ../gcc/crtend.o ]; then echo ../gcc/crtend.o ; else ${CC} -print-file-name=crtend.o; fi` /usr/lib32/crtn.o -init __do_global_ctors -fini __do_global_dtors'
+    ;;
+  
+  m68*-motorola-sysv)
+    HOSTING_CRT0='`if [ -f ../gcc/crt0.o ]; then echo ../gcc/crt0.o; elif [ -f \`${CC} -print-file-name=\`crt0.o ]; then echo \`${CC} -print-file-name=\`crt0.o; else echo /lib/crt0.o; fi`'
+!   HOSTING_LIBS=`sed -e 's,-lc,-lc881,' <<EOF
+! $HOSTING_LIBS
+! EOF`
+    ;;
+  
+  m68*-sun-*)
+*************** m88*-motorola-sysv3)
+*** 195,216 ****
+    HOSTING_LIBS="$HOSTING_LIBS"' `if [ -f ../gcc/crtend.o ]; then echo ../gcc/crtend.o; else ${CC} -print-file-name=crtend.o; fi`'
+    ;;
+  
+- powerpc64*-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib64/ld64.so.1,"`
+-   ;;
+- 
+- powerpc*-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib/ld.so.1,"`
+-   ;;
+- 
+- s390x-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib/ld64.so.1,"`
+-   ;;
+- 
+- s390-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib/ld.so.1,"`
+-   ;;
+- 
+  sparc-*-solaris2*)
+    HOSTING_CRT0='`if [ -f ../gcc/crt1.o ]; then echo ../gcc/crt1.o; else ${CC} -print-file-name=crt1.o; fi` `if [ -f ../gcc/crti.o ]; then echo ../gcc/crti.o; else ${CC} -print-file-name=crti.o; fi` /usr/ccs/lib/values-Xa.o `if [ -f ../gcc/crtbegin.o ]; then echo ../gcc/crtbegin.o; else ${CC} -print-file-name=crtbegin.o; fi`'
+    HOSTING_LIBS="$HOSTING_LIBS"' `if [ -f ../gcc/crtend.o ]; then echo ../gcc/crtend.o; else ${CC} -print-file-name=crtend.o; fi` `if [ -f ../gcc/crtn.o ]; then echo ../gcc/crtn.o; else ${CC} -print-file-name=crtn.o; fi`'
+--- 181,186 ----
+*************** sparc64-*-solaris2* | sparcv9-*-solaris2
+*** 221,238 ****
+    HOSTING_LIBS="$HOSTING_LIBS"' `if [ -f ../gcc/crtend.o ]; then echo ../gcc/crtend.o; else ${CC} -print-file-name=crtend.o; fi` `if [ -f ../gcc/crtn.o ]; then echo ../gcc/crtn.o; else ${CC} -print-file-name=crtn.o; fi`'
+    ;;
+  
+- sparc-*-linux-* | sparcv*-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib/ld-linux.so.2,"`
+-   ;;
+- 
+- sparc64*-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib64/ld-linux.so.2,"`
+-   ;;
+- 
+- x86_64-*-linux-*)
+-   HOSTING_CRT0=`echo "$HOSTING_CRT0" | sed -e "s,\\\`specs.*\"\\\`,/lib64/ld-linux-x86-64.so.2,"`
+-   ;;
+- 
+  *-*-freebsd* | *-*-kfreebsd*-gnu | *-*-dragonfly*)
+    ;;
+  
+--- 191,196 ----
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/emultempl/ppc64elf.em ./ld/emultempl/ppc64elf.em
+*** ../binutils-2.20.51.0.2.orig/ld/emultempl/ppc64elf.em	2012-04-26 22:03:49.371596763 +0930
+--- ./ld/emultempl/ppc64elf.em	2012-04-26 21:23:20.087417273 +0930
+***************
+*** 1,5 ****
+  # This shell script emits a C file. -*- C -*-
+! # Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+  # Free Software Foundation, Inc.
+  #
+  # This file is part of the GNU Binutils.
+--- 1,5 ----
+  # This shell script emits a C file. -*- C -*-
+! # Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
+  # Free Software Foundation, Inc.
+  #
+  # This file is part of the GNU Binutils.
+*************** static int no_multi_toc = 0;
+*** 61,66 ****
+--- 61,75 ----
+  /* Whether to sort input toc and got sections.  */
+  static int no_toc_sort = 0;
+  
++ /* Set if PLT call stubs should load r11.  */
++ static int plt_static_chain = 0;
++ 
++ /* Set if PLT call stubs need to be thread safe on power7+.  */
++ static int plt_thread_safe = -1;
++ 
++ /* Set if individual PLT call stubs should be aligned.  */
++ static int plt_stub_align = 0;
++ 
+  /* Whether to emit symbols for stubs.  */
+  static int emit_stub_syms = -1;
+  
+*************** ppc_add_stub_section (const char *stub_s
+*** 375,381 ****
+  	   | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP);
+    stub_sec = bfd_make_section_anyway_with_flags (stub_file->the_bfd,
+  						 stub_sec_name, flags);
+!   if (stub_sec == NULL)
+      goto err_ret;
+  
+    output_section = input_section->output_section;
+--- 384,392 ----
+  	   | SEC_HAS_CONTENTS | SEC_IN_MEMORY | SEC_KEEP);
+    stub_sec = bfd_make_section_anyway_with_flags (stub_file->the_bfd,
+  						 stub_sec_name, flags);
+!   if (stub_sec == NULL
+!       || !bfd_set_section_alignment (stub_file->the_bfd, stub_sec,
+! 				     plt_stub_align > 5 ? plt_stub_align : 5))
+      goto err_ret;
+  
+    output_section = input_section->output_section;
+*************** gld${EMULATION_NAME}_after_allocation (v
+*** 500,506 ****
+  	    einfo ("%P: .init/.fini fragments use differing TOC pointers\n");
+  
+  	  /* Call into the BFD backend to do the real work.  */
+! 	  if (!ppc64_elf_size_stubs (&link_info, group_size))
+  	    einfo ("%X%P: can not size stub section: %E\n");
+  	}
+      }
+--- 511,519 ----
+  	    einfo ("%P: .init/.fini fragments use differing TOC pointers\n");
+  
+  	  /* Call into the BFD backend to do the real work.  */
+! 	  if (!ppc64_elf_size_stubs (&link_info, group_size,
+! 				     plt_static_chain, plt_thread_safe,
+! 				     plt_stub_align))
+  	    einfo ("%X%P: can not size stub section: %E\n");
+  	}
+      }
+*************** fi
+*** 649,655 ****
+  #
+  PARSE_AND_LIST_PROLOGUE='
+  #define OPTION_STUBGROUP_SIZE		301
+! #define OPTION_STUBSYMS			(OPTION_STUBGROUP_SIZE + 1)
+  #define OPTION_NO_STUBSYMS		(OPTION_STUBSYMS + 1)
+  #define OPTION_DOTSYMS			(OPTION_NO_STUBSYMS + 1)
+  #define OPTION_NO_DOTSYMS		(OPTION_DOTSYMS + 1)
+--- 662,674 ----
+  #
+  PARSE_AND_LIST_PROLOGUE='
+  #define OPTION_STUBGROUP_SIZE		301
+! #define OPTION_PLT_STATIC_CHAIN		(OPTION_STUBGROUP_SIZE + 1)
+! #define OPTION_NO_PLT_STATIC_CHAIN	(OPTION_PLT_STATIC_CHAIN + 1)
+! #define OPTION_PLT_THREAD_SAFE		(OPTION_NO_PLT_STATIC_CHAIN + 1)
+! #define OPTION_NO_PLT_THREAD_SAFE	(OPTION_PLT_THREAD_SAFE + 1)
+! #define OPTION_PLT_ALIGN		(OPTION_NO_PLT_THREAD_SAFE + 1)
+! #define OPTION_NO_PLT_ALIGN		(OPTION_PLT_ALIGN + 1)
+! #define OPTION_STUBSYMS			(OPTION_NO_PLT_ALIGN + 1)
+  #define OPTION_NO_STUBSYMS		(OPTION_STUBSYMS + 1)
+  #define OPTION_DOTSYMS			(OPTION_NO_STUBSYMS + 1)
+  #define OPTION_NO_DOTSYMS		(OPTION_DOTSYMS + 1)
+*************** PARSE_AND_LIST_PROLOGUE='
+*** 664,669 ****
+--- 683,694 ----
+  
+  PARSE_AND_LIST_LONGOPTS='
+    { "stub-group-size", required_argument, NULL, OPTION_STUBGROUP_SIZE },
++   { "plt-static-chain", no_argument, NULL, OPTION_PLT_STATIC_CHAIN },
++   { "no-plt-static-chain", no_argument, NULL, OPTION_NO_PLT_STATIC_CHAIN },
++   { "plt-thread-safe", no_argument, NULL, OPTION_PLT_THREAD_SAFE },
++   { "no-plt-thread-safe", no_argument, NULL, OPTION_NO_PLT_THREAD_SAFE },
++   { "plt-align", optional_argument, NULL, OPTION_PLT_ALIGN },
++   { "no-plt-align", no_argument, NULL, OPTION_NO_PLT_ALIGN },
+    { "emit-stub-syms", no_argument, NULL, OPTION_STUBSYMS },
+    { "no-emit-stub-syms", no_argument, NULL, OPTION_NO_STUBSYMS },
+    { "dotsyms", no_argument, NULL, OPTION_DOTSYMS },
+*************** PARSE_AND_LIST_OPTIONS='
+*** 689,694 ****
+--- 714,737 ----
+                                  choose suitable defaults.\n"
+  		   ));
+    fprintf (file, _("\
++   --plt-static-chain          PLT call stubs should load r11.${DEFAULT_PLT_STATIC_CHAIN- (default)}\n"
++ 		   ));
++   fprintf (file, _("\
++   --no-plt-static-chain       PLT call stubs should not load r11.${DEFAULT_PLT_STATIC_CHAIN+ (default)}\n"
++ 		   ));
++   fprintf (file, _("\
++   --plt-thread-safe           PLT call stubs with load-load barrier.\n"
++ 		   ));
++   fprintf (file, _("\
++   --no-plt-thread-safe        PLT call stubs without barrier.\n"
++ 		   ));
++   fprintf (file, _("\
++   --plt-align [=<align>]      Align PLT call stubs to fit cache lines.\n"
++ 		   ));
++   fprintf (file, _("\
++   --no-plt-align              Dont'\''t align individual PLT call stubs.\n"
++ 		   ));
++   fprintf (file, _("\
+    --emit-stub-syms            Label linker stubs with a symbol.\n"
+  		   ));
+    fprintf (file, _("\
+*************** PARSE_AND_LIST_ARGS_CASES='
+*** 737,742 ****
+--- 780,818 ----
+        }
+        break;
+  
++     case OPTION_PLT_STATIC_CHAIN:
++       plt_static_chain = 1;
++       break;
++ 
++     case OPTION_NO_PLT_STATIC_CHAIN:
++       plt_static_chain = 0;
++       break;
++ 
++     case OPTION_PLT_THREAD_SAFE:
++       plt_thread_safe = 1;
++       break;
++ 
++     case OPTION_NO_PLT_THREAD_SAFE:
++       plt_thread_safe = 0;
++       break;
++ 
++     case OPTION_PLT_ALIGN:
++       if (optarg != NULL)
++ 	{
++ 	  char *end;
++ 	  unsigned long val = strtoul (optarg, &end, 0);
++ 	  if (*end || val > 8)
++ 	    einfo (_("%P%F: invalid --plt-align `%s'\''\n"), optarg);
++ 	  plt_stub_align = val;
++ 	}
++       else
++ 	plt_stub_align = 5;
++       break;
++ 
++     case OPTION_NO_PLT_ALIGN:
++       plt_stub_align = 0;
++       break;
++ 
+      case OPTION_STUBSYMS:
+        emit_stub_syms = 1;
+        break;
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/ld.texinfo ./ld/ld.texinfo
+*** ../binutils-2.20.51.0.2.orig/ld/ld.texinfo	2012-04-26 22:03:49.376094157 +0930
+--- ./ld/ld.texinfo	2012-04-26 21:23:20.087417273 +0930
+***************
+*** 1,7 ****
+  \input texinfo
+  @setfilename ld.info
+  @c Copyright 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
+! @c 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+  @c Free Software Foundation, Inc.
+  @syncodeindex ky cp
+  @c man begin INCLUDE
+--- 1,7 ----
+  \input texinfo
+  @setfilename ld.info
+  @c Copyright 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
+! @c 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
+  @c Free Software Foundation, Inc.
+  @syncodeindex ky cp
+  @c man begin INCLUDE
+*************** optimization.
+*** 6486,6492 ****
+  @cindex PowerPC64 multi-TOC
+  @kindex --no-multi-toc
+  @item --no-multi-toc
+! By default, PowerPC64 GCC generates code for a TOC model where TOC
+  entries are accessed with a 16-bit offset from r2.  This limits the
+  total TOC size to 64K.  PowerPC64 @command{ld} extends this limit by
+  grouping code sections such that each group uses less than 64K for its
+--- 6486,6494 ----
+  @cindex PowerPC64 multi-TOC
+  @kindex --no-multi-toc
+  @item --no-multi-toc
+! If given any toc option besides @code{-mcmodel=medium} or
+! @code{-mcmodel=large}, PowerPC64 GCC generates code for a TOC model
+! where TOC
+  entries are accessed with a 16-bit offset from r2.  This limits the
+  total TOC size to 64K.  PowerPC64 @command{ld} extends this limit by
+  grouping code sections such that each group uses less than 64K for its
+*************** calls.  @command{ld} does not split apar
+*** 6495,6500 ****
+--- 6497,6548 ----
+  help if a single input file has a @code{.toc} section that exceeds
+  64K, most likely from linking multiple files with @command{ld -r}.
+  Use this option to turn off this feature.
++ 
++ @cindex PowerPC64 TOC sorting
++ @kindex --no-toc-sort
++ @item --no-toc-sort
++ By default, @command{ld} sorts TOC sections so that those whose file
++ happens to have a section called @code{.init} or @code{.fini} are
++ placed first, followed by TOC sections referenced by code generated
++ with PowerPC64 gcc's @code{-mcmodel=small}, and lastly TOC sections
++ referenced only by code generated with PowerPC64 gcc's
++ @code{-mcmodel=medium} or @code{-mcmodel=large} options.  Doing this
++ results in better TOC grouping for multi-TOC.  Use this option to turn
++ off this feature.
++ 
++ @cindex PowerPC64 PLT stub alignment
++ @kindex --plt-align
++ @kindex --no-plt-align
++ @item --plt-align
++ @itemx --no-plt-align
++ Use these options to control whether individual PLT call stubs are
++ aligned to a 32-byte boundary, or to the specified power of two
++ boundary when using @code{--plt-align=}.  By default PLT call stubs
++ are packed tightly.
++ 
++ @cindex PowerPC64 PLT call stub static chain
++ @kindex --plt-static-chain
++ @kindex --no-plt-static-chain
++ @item --plt-static-chain
++ @itemx --no-plt-static-chain
++ Use these options to control whether PLT call stubs load the static
++ chain pointer (r11).  @code{ld} defaults to not loading the static
++ chain since there is never any need to do so on a PLT call.
++ 
++ @cindex PowerPC64 PLT call stub thread safety
++ @kindex --plt-thread-safe
++ @kindex --no-plt-thread-safe
++ @item --plt-thread-safe
++ @itemx --no-thread-safe
++ With power7's weakly ordered memory model, it is possible when using
++ lazy binding for ld.so to update a plt entry in one thread and have
++ another thread see the individual plt entry words update in the wrong
++ order, despite ld.so carefully writing in the correct order and using
++ memory write barriers.  To avoid this we need some sort of read
++ barrier in the call stub, or use LD_BIND_NOW=1.  By default, @code{ld}
++ looks for calls to commonly used functions that create threads, and if
++ seen, adds the necessary barriers.  Use these options to change the
++ default behaviour.
+  @end table
+  
+  @ifclear GENERIC
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/powerpc.exp ./ld/testsuite/ld-powerpc/powerpc.exp
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/powerpc.exp	2012-04-26 22:03:49.376094157 +0930
+--- ./ld/testsuite/ld-powerpc/powerpc.exp	2012-04-26 21:23:20.055915446 +0930
+***************
+*** 1,5 ****
+  # Expect script for ld-powerpc tests
+! #   Copyright 2002, 2003, 2005, 2006, 2007, 2008, 2009 Free Software Foundation
+  #
+  # This file is part of the GNU Binutils.
+  #
+--- 1,6 ----
+  # Expect script for ld-powerpc tests
+! #   Copyright 2002, 2003, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+! #   Free Software Foundation
+  #
+  # This file is part of the GNU Binutils.
+  #
+*************** set ppcelftests {
+*** 120,125 ****
+--- 121,138 ----
+      {"TLS32 markers" "-melf32ppc" "-a32"  {tlsmark32.s tlslib32.s}
+       {{objdump -dr tlsmark32.d}}
+        "tlsmark32"}
++     {"TLS32 opt 1" "-melf32ppc" "-a32"  {tlsopt1_32.s tlslib32.s}
++      {{objdump -dr tlsopt1_32.d}}
++       "tlsopt1_32"}
++     {"TLS32 opt 2" "-melf32ppc" "-a32"  {tlsopt2_32.s tlslib32.s}
++      {{objdump -dr tlsopt2_32.d}}
++       "tlsopt2_32"}
++     {"TLS32 opt 3" "-melf32ppc" "-a32"  {tlsopt3_32.s tlslib32.s}
++      {{objdump -dr tlsopt3_32.d}}
++       "tlsopt3_32"}
++     {"TLS32 opt 4" "-melf32ppc" "-a32"  {tlsopt4_32.s tlslib32.s}
++      {{objdump -dr tlsopt4_32.d}}
++       "tlsopt4_32"}
+      {"Shared library with global symbol" "-shared -melf32ppc" "-a32" {sdalib.s}
+       {} "sdalib.so"}
+      {"Dynamic application with SDA" "-melf32ppc tmpdir/sdalib.so" "-a32" {sdadyn.s}
+*************** set ppc64elftests {
+*** 173,178 ****
+--- 186,203 ----
+      {"TLS markers" "-melf64ppc" "-a64"  {tlsmark.s tlslib.s}
+       {{objdump -dr tlsmark.d}}
+        "tlsmark"}
++     {"TLS opt 1" "-melf64ppc" "-a64"  {tlsopt1.s tlslib.s}
++      {{objdump -dr tlsopt1.d}}
++       "tlsopt1"}
++     {"TLS opt 2" "-melf64ppc" "-a64"  {tlsopt2.s tlslib.s}
++      {{objdump -dr tlsopt2.d}}
++       "tlsopt2"}
++     {"TLS opt 3" "-melf64ppc" "-a64"  {tlsopt3.s tlslib.s}
++      {{objdump -dr tlsopt3.d}}
++       "tlsopt3"}
++     {"TLS opt 4" "-melf64ppc" "-a64"  {tlsopt4.s tlslib.s}
++      {{objdump -dr tlsopt4.d}}
++       "tlsopt4"}
+      {"sym@tocbase" "-shared -melf64ppc" "-a64" {symtocbase-1.s symtocbase-2.s}
+  	{{objdump -dj.data symtocbase.d}} "symtocbase.so"}
+      {"TOC opt2" "-melf64ppc --defsym x=2" "-a64"  {tocopt2.s}
+*************** set ppc64elftests {
+*** 181,186 ****
+--- 206,213 ----
+  	{{objdump -s tocopt3.d}} "tocopt3"}
+      {"TOC opt4" "-melf64ppc -no-keep-memory --defsym x=2" "-a64"
+          {tocopt4a.s tocopt4b.s} {{objdump -s tocopt4.d}} "tocopt4"}
++     {"TOC opt5" "-melf64ppc" "-a64"  {tocopt5.s}
++ 	{{objdump -s tocopt5.d}} "tocopt5"}
+  }
+  
+  
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/relbrlt.d ./ld/testsuite/ld-powerpc/relbrlt.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/relbrlt.d	2012-04-26 22:03:49.376094157 +0930
+--- ./ld/testsuite/ld-powerpc/relbrlt.d	2012-04-26 21:23:20.059847972 +0930
+***************
+*** 7,13 ****
+  
+  Disassembly of section \.text:
+  
+! 0*100000b0 <_start>:
+  [0-9a-f	 ]*:	49 bf 00 2d 	bl      .*
+  [0-9a-f	 ]*: R_PPC64_REL24	\.text\+0x37e003c
+  [0-9a-f	 ]*:	60 00 00 00 	nop
+--- 7,13 ----
+  
+  Disassembly of section \.text:
+  
+! 0*100000c0 <_start>:
+  [0-9a-f	 ]*:	49 bf 00 2d 	bl      .*
+  [0-9a-f	 ]*: R_PPC64_REL24	\.text\+0x37e003c
+  [0-9a-f	 ]*:	60 00 00 00 	nop
+*************** Disassembly of section \.text:
+*** 23,60 ****
+  
+  [0-9a-f	 ]*<.*plt_branch.*>:
+  [0-9a-f	 ]*:	e9 62 80 00 	ld      r11,-32768\(r2\)
+! [0-9a-f	 ]*: R_PPC64_TOC16_DS	\*ABS\*\+0x157f00d8
+  [0-9a-f	 ]*:	7d 69 03 a6 	mtctr   r11
+  [0-9a-f	 ]*:	4e 80 04 20 	bctr
+  
+  [0-9a-f	 ]*<.*long_branch.*>:
+  [0-9a-f	 ]*:	49 bf 00 10 	b       .* <far>
+! [0-9a-f	 ]*: R_PPC64_REL24	\*ABS\*\+0x137e00ec
+  
+  [0-9a-f	 ]*<.*plt_branch.*>:
+  [0-9a-f	 ]*:	e9 62 80 08 	ld      r11,-32760\(r2\)
+! [0-9a-f	 ]*: R_PPC64_TOC16_DS	\*ABS\*\+0x157f00e0
+  [0-9a-f	 ]*:	7d 69 03 a6 	mtctr   r11
+  [0-9a-f	 ]*:	4e 80 04 20 	bctr
+  	\.\.\.
+  
+! 0*137e00ec <far>:
+  [0-9a-f	 ]*:	4e 80 00 20 	blr
+  	\.\.\.
+  
+! 0*13bf00d0 <far2far>:
+  [0-9a-f	 ]*:	4e 80 00 20 	blr
+  	\.\.\.
+  
+! 0*157e00d4 <huge>:
+  [0-9a-f	 ]*:	4e 80 00 20 	blr
+  
+  Disassembly of section \.branch_lt:
+  
+! 0*157f00d8 <\.branch_lt>:
+  [0-9a-f	 ]*:	00 00 00 00 .*
+! [0-9a-f	 ]*: R_PPC64_RELATIVE	\*ABS\*\+0x13bf00d0
+! [0-9a-f	 ]*:	13 bf 00 d0 .*
+  [0-9a-f	 ]*:	00 00 00 00 .*
+! [0-9a-f	 ]*: R_PPC64_RELATIVE	\*ABS\*\+0x157e00d4
+! [0-9a-f	 ]*:	15 7e 00 d4 .*
+--- 23,60 ----
+  
+  [0-9a-f	 ]*<.*plt_branch.*>:
+  [0-9a-f	 ]*:	e9 62 80 00 	ld      r11,-32768\(r2\)
+! [0-9a-f	 ]*: R_PPC64_TOC16_DS	\*ABS\*\+0x157f00e8
+  [0-9a-f	 ]*:	7d 69 03 a6 	mtctr   r11
+  [0-9a-f	 ]*:	4e 80 04 20 	bctr
+  
+  [0-9a-f	 ]*<.*long_branch.*>:
+  [0-9a-f	 ]*:	49 bf 00 10 	b       .* <far>
+! [0-9a-f	 ]*: R_PPC64_REL24	\*ABS\*\+0x137e00fc
+  
+  [0-9a-f	 ]*<.*plt_branch.*>:
+  [0-9a-f	 ]*:	e9 62 80 08 	ld      r11,-32760\(r2\)
+! [0-9a-f	 ]*: R_PPC64_TOC16_DS	\*ABS\*\+0x157f00f0
+  [0-9a-f	 ]*:	7d 69 03 a6 	mtctr   r11
+  [0-9a-f	 ]*:	4e 80 04 20 	bctr
+  	\.\.\.
+  
+! 0*137e00fc <far>:
+  [0-9a-f	 ]*:	4e 80 00 20 	blr
+  	\.\.\.
+  
+! 0*13bf00e0 <far2far>:
+  [0-9a-f	 ]*:	4e 80 00 20 	blr
+  	\.\.\.
+  
+! 0*157e00e4 <huge>:
+  [0-9a-f	 ]*:	4e 80 00 20 	blr
+  
+  Disassembly of section \.branch_lt:
+  
+! 0*157f00e8 <\.branch_lt>:
+  [0-9a-f	 ]*:	00 00 00 00 .*
+! [0-9a-f	 ]*: R_PPC64_RELATIVE	\*ABS\*\+0x13bf00e0
+! [0-9a-f	 ]*:	13 bf 00 e0 .*
+  [0-9a-f	 ]*:	00 00 00 00 .*
+! [0-9a-f	 ]*: R_PPC64_RELATIVE	\*ABS\*\+0x157e00e4
+! [0-9a-f	 ]*:	15 7e 00 e4 .*
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexe.d ./ld/testsuite/ld-powerpc/tlsexe.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexe.d	2012-04-26 22:03:49.376094157 +0930
+--- ./ld/testsuite/ld-powerpc/tlsexe.d	2012-04-26 21:20:50.139371396 +0930
+*************** Disassembly of section \.text:
+*** 21,27 ****
+  .*	f8 41 00 28 	std     r2,40\(r1\)
+  .*	e9 62 80 48 	ld      r11,-32696\(r2\)
+  .*	7d 69 03 a6 	mtctr   r11
+- .*	e9 62 80 58 	ld      r11,-32680\(r2\)
+  .*	e8 42 80 50 	ld      r2,-32688\(r2\)
+  .*	4e 80 04 21 	bctrl
+  .*	e9 61 00 20 	ld      r11,32\(r1\)
+--- 21,26 ----
+*************** Disassembly of section \.text:
+*** 34,40 ****
+  .*	60 00 00 00 	nop
+  .*	7c 63 6a 14 	add     r3,r3,r13
+  .*	38 62 80 18 	addi    r3,r2,-32744
+! .*	4b ff ff a5 	bl      .*
+  .*	60 00 00 00 	nop
+  .*	3c 6d 00 00 	addis   r3,r13,0
+  .*	60 00 00 00 	nop
+--- 33,39 ----
+  .*	60 00 00 00 	nop
+  .*	7c 63 6a 14 	add     r3,r3,r13
+  .*	38 62 80 18 	addi    r3,r2,-32744
+! .*	4b ff ff a9 	bl      .*
+  .*	60 00 00 00 	nop
+  .*	3c 6d 00 00 	addis   r3,r13,0
+  .*	60 00 00 00 	nop
+*************** Disassembly of section \.text:
+*** 68,74 ****
+  .*	e9 4d 90 2a 	lwa     r10,-28632\(r13\)
+  .*	3d 2d 00 00 	addis   r9,r13,0
+  .*	a9 49 90 30 	lha     r10,-28624\(r9\)
+- .*	60 00 00 00 	nop
+  .*	00 00 00 00 .*
+  .*	00 01 02 00 .*
+  .* <__glink_PLTresolve>:
+--- 67,72 ----
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexe.g ./ld/testsuite/ld-powerpc/tlsexe.g
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexe.g	2012-04-26 22:03:49.376094157 +0930
+--- ./ld/testsuite/ld-powerpc/tlsexe.g	2012-04-26 21:23:20.059847972 +0930
+***************
+*** 7,12 ****
+  .*: +file format elf64-powerpc
+  
+  Contents of section \.got:
+! .* 00000000 10018618 ffffffff ffff8018  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+--- 7,12 ----
+  .*: +file format elf64-powerpc
+  
+  Contents of section \.got:
+! .* 00000000 10018620 ffffffff ffff8018  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexe.r ./ld/testsuite/ld-powerpc/tlsexe.r
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexe.r	2012-04-26 22:03:49.376094157 +0930
+--- ./ld/testsuite/ld-powerpc/tlsexe.r	2012-04-26 21:23:20.059847972 +0930
+*************** Section Headers:
+*** 16,22 ****
+   +\[[ 0-9]+\] \.dynstr +.*
+   +\[[ 0-9]+\] \.rela\.dyn +.*
+   +\[[ 0-9]+\] \.rela\.plt +.*
+!  +\[[ 0-9]+\] \.text +PROGBITS .* 0+130 0+ +AX +0 +0 +8
+   +\[[ 0-9]+\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.dynamic +DYNAMIC .* 0+160 10 +WA +4 +0 +8
+--- 16,22 ----
+   +\[[ 0-9]+\] \.dynstr +.*
+   +\[[ 0-9]+\] \.rela\.dyn +.*
+   +\[[ 0-9]+\] \.rela\.plt +.*
+!  +\[[ 0-9]+\] \.text +PROGBITS .* 0+128 0+ +AX +0 +0 +32
+   +\[[ 0-9]+\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.dynamic +DYNAMIC .* 0+160 10 +WA +4 +0 +8
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexetoc.d ./ld/testsuite/ld-powerpc/tlsexetoc.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexetoc.d	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsexetoc.d	2012-04-26 21:20:50.139371396 +0930
+*************** Disassembly of section \.text:
+*** 21,27 ****
+  .*	f8 41 00 28 	std     r2,40\(r1\)
+  .*	e9 62 80 70 	ld      r11,-32656\(r2\)
+  .*	7d 69 03 a6 	mtctr   r11
+- .*	e9 62 80 80 	ld      r11,-32640\(r2\)
+  .*	e8 42 80 78 	ld      r2,-32648\(r2\)
+  .*	4e 80 04 21 	bctrl
+  .*	e9 61 00 20 	ld      r11,32\(r1\)
+--- 21,26 ----
+*************** Disassembly of section \.text:
+*** 31,40 ****
+  
+  .* <_start>:
+  .*	38 62 80 08 	addi    r3,r2,-32760
+! .*	4b ff ff b1 	bl      .*
+  .*	60 00 00 00 	nop
+  .*	38 62 80 18 	addi    r3,r2,-32744
+! .*	4b ff ff a5 	bl      .*
+  .*	60 00 00 00 	nop
+  .*	3c 6d 00 00 	addis   r3,r13,0
+  .*	60 00 00 00 	nop
+--- 30,39 ----
+  
+  .* <_start>:
+  .*	38 62 80 08 	addi    r3,r2,-32760
+! .*	4b ff ff b5 	bl      .*
+  .*	60 00 00 00 	nop
+  .*	38 62 80 18 	addi    r3,r2,-32744
+! .*	4b ff ff a9 	bl      .*
+  .*	60 00 00 00 	nop
+  .*	3c 6d 00 00 	addis   r3,r13,0
+  .*	60 00 00 00 	nop
+*************** Disassembly of section \.text:
+*** 52,58 ****
+  .*	89 4d 90 60 	lbz     r10,-28576\(r13\)
+  .*	3d 2d 00 00 	addis   r9,r13,0
+  .*	99 49 90 68 	stb     r10,-28568\(r9\)
+- .*	60 00 00 00 	nop
+  .*	00 00 00 00 .*
+  .*	00 01 02 28 .*
+  .* <__glink_PLTresolve>:
+--- 51,56 ----
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexetoc.g ./ld/testsuite/ld-powerpc/tlsexetoc.g
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexetoc.g	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsexetoc.g	2012-04-26 21:23:20.059847972 +0930
+***************
+*** 7,13 ****
+  .*: +file format elf64-powerpc
+  
+  Contents of section \.got:
+! .* 00000000 100185b0 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000001  .*
+  .* 00000000 00000000 00000000 00000001  .*
+--- 7,13 ----
+  .*: +file format elf64-powerpc
+  
+  Contents of section \.got:
+! .* 00000000 100185c0 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000001  .*
+  .* 00000000 00000000 00000000 00000001  .*
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexetoc.r ./ld/testsuite/ld-powerpc/tlsexetoc.r
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsexetoc.r	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsexetoc.r	2012-04-26 21:23:20.063844933 +0930
+*************** Section Headers:
+*** 16,22 ****
+   +\[[ 0-9]+\] \.dynstr +.*
+   +\[[ 0-9]+\] \.rela\.dyn +.*
+   +\[[ 0-9]+\] \.rela\.plt +.*
+!  +\[[ 0-9]+\] \.text +PROGBITS .* 0+f0 0+ +AX +0 +0 +8
+   +\[[ 0-9]+\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.dynamic +DYNAMIC .* 0+160 10 +WA +4 +0 +8
+--- 16,22 ----
+   +\[[ 0-9]+\] \.dynstr +.*
+   +\[[ 0-9]+\] \.rela\.dyn +.*
+   +\[[ 0-9]+\] \.rela\.plt +.*
+!  +\[[ 0-9]+\] \.text +PROGBITS .* 0+e8 0+ +AX +0 +0 +32
+   +\[[ 0-9]+\] \.tdata +PROGBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.tbss +NOBITS .* 0+38 0+ WAT +0 +0 +8
+   +\[[ 0-9]+\] \.dynamic +DYNAMIC .* 0+160 10 +WA +4 +0 +8
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark32.d ./ld/testsuite/ld-powerpc/tlsmark32.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark32.d	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsmark32.d	2012-04-26 21:17:44.803617696 +0930
+*************** Disassembly of section \.text:
+*** 19,29 ****
+   18000ac:	4b ff ff ec 	b       1800098 <_start\+0x4>
+   18000b0:	38 63 10 00 	addi    r3,r3,4096
+   18000b4:	80 83 80 00 	lwz     r4,-32768\(r3\)
+-  18000b8:	38 7f ff f4 	addi    r3,r31,-12
+-  18000bc:	3f a0 01 80 	lis     r29,384
+-  18000c0:	3b bd 00 c8 	addi    r29,r29,200
+-  18000c4:	48 00 00 05 	bl      18000c8 <__tls_get_addr>
+  
+! 0+18000c8 <__tls_get_addr>:
+!  18000c8:	4e 80 00 20 	blr
+  #pass
+\ No newline at end of file
+--- 19,25 ----
+   18000ac:	4b ff ff ec 	b       1800098 <_start\+0x4>
+   18000b0:	38 63 10 00 	addi    r3,r3,4096
+   18000b4:	80 83 80 00 	lwz     r4,-32768\(r3\)
+  
+! 0+18000b8 <__tls_get_addr>:
+!  18000b8:	4e 80 00 20 	blr
+  #pass
+\ No newline at end of file
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark32.s ./ld/testsuite/ld-powerpc/tlsmark32.s
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark32.s	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsmark32.s	2012-04-26 21:17:44.803617696 +0930
+*************** _start:
+*** 17,27 ****
+  .L3:
+  	bl __tls_get_addr(x@tlsld)
+  	lwz 4,x@dtprel(3)
+- 
+- 
+- 	.section ".text.no","ax",@progbits
+- 	.p2align 2
+- 	addi 3,31,gd@got@tlsgd
+- 	lis 29,__tls_get_addr@ha
+- 	addi 29,29,__tls_get_addr@l
+- 	bl __tls_get_addr
+--- 17,19 ----
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark.d ./ld/testsuite/ld-powerpc/tlsmark.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark.d	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsmark.d	2012-04-26 21:17:44.803617696 +0930
+*************** Disassembly of section \.text:
+*** 32,42 ****
+      10000134:	60 00 00 00 	nop
+      10000138:	38 63 10 00 	addi    r3,r3,4096
+      1000013c:	e8 a3 80 04 	ld      r5,-32764\(r3\)
+-     10000140:	38 62 80 28 	addi    r3,r2,-32728
+-     10000144:	3f a0 10 01 	lis     r29,4097
+-     10000148:	3b bd 01 68 	addi    r29,r29,360
+-     1000014c:	48 00 00 09 	bl      10000154 <\.__tls_get_addr>
+-     10000150:	60 00 00 00 	nop
+  
+! 0+10000154 <\.__tls_get_addr>:
+!     10000154:	4e 80 00 20 	blr
+--- 32,37 ----
+      10000134:	60 00 00 00 	nop
+      10000138:	38 63 10 00 	addi    r3,r3,4096
+      1000013c:	e8 a3 80 04 	ld      r5,-32764\(r3\)
+  
+! 0+10000140 <\.__tls_get_addr>:
+!     10000140:	4e 80 00 20 	blr
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark.s ./ld/testsuite/ld-powerpc/tlsmark.s
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsmark.s	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsmark.s	2012-04-26 21:17:44.803617696 +0930
+*************** _start:
+*** 44,55 ****
+  	bl .__tls_get_addr(.LC1@tlsld)
+  	nop
+  	ld 5,y@dtprel(3)
+- 
+- 
+- 	.section ".text.no","ax",@progbits
+- 	.p2align 2
+- 	addi 3,2,gd@got@tlsgd
+- 	lis 29,__tls_get_addr@ha
+- 	addi 29,29,__tls_get_addr@l
+- 	bl __tls_get_addr
+- 	nop
+--- 44,46 ----
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsso.d ./ld/testsuite/ld-powerpc/tlsso.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsso.d	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsso.d	2012-04-26 21:20:50.139371396 +0930
+*************** Disassembly of section \.text:
+*** 12,33 ****
+  .*	f8 41 00 28 	std     r2,40\(r1\)
+  .*	e9 62 80 78 	ld      r11,-32648\(r2\)
+  .*	7d 69 03 a6 	mtctr   r11
+- .*	e9 62 80 88 	ld      r11,-32632\(r2\)
+  .*	e8 42 80 80 	ld      r2,-32640\(r2\)
+  .*	4e 80 04 20 	bctr
+  
+  .* <_start>:
+  .*	38 62 80 20 	addi    r3,r2,-32736
+! .*	4b ff ff e5 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 50 	addi    r3,r2,-32688
+! .*	4b ff ff d9 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 38 	addi    r3,r2,-32712
+! .*	4b ff ff cd 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 50 	addi    r3,r2,-32688
+! .*	4b ff ff c1 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	39 23 80 40 	addi    r9,r3,-32704
+  .*	3d 23 00 00 	addis   r9,r3,0
+--- 12,32 ----
+  .*	f8 41 00 28 	std     r2,40\(r1\)
+  .*	e9 62 80 78 	ld      r11,-32648\(r2\)
+  .*	7d 69 03 a6 	mtctr   r11
+  .*	e8 42 80 80 	ld      r2,-32640\(r2\)
+  .*	4e 80 04 20 	bctr
+  
+  .* <_start>:
+  .*	38 62 80 20 	addi    r3,r2,-32736
+! .*	4b ff ff e9 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 50 	addi    r3,r2,-32688
+! .*	4b ff ff dd 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 38 	addi    r3,r2,-32712
+! .*	4b ff ff d1 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 50 	addi    r3,r2,-32688
+! .*	4b ff ff c5 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	39 23 80 40 	addi    r9,r3,-32704
+  .*	3d 23 00 00 	addis   r9,r3,0
+*************** Disassembly of section \.text:
+*** 40,49 ****
+  .*	3d 2d 00 00 	addis   r9,r13,0
+  .*	99 49 00 00 	stb     r10,0\(r9\)
+  .*	38 62 80 08 	addi    r3,r2,-32760
+! .*	4b ff ff 8d 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 50 	addi    r3,r2,-32688
+! .*	4b ff ff 81 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	f9 43 80 08 	std     r10,-32760\(r3\)
+  .*	3d 23 00 00 	addis   r9,r3,0
+--- 39,48 ----
+  .*	3d 2d 00 00 	addis   r9,r13,0
+  .*	99 49 00 00 	stb     r10,0\(r9\)
+  .*	38 62 80 08 	addi    r3,r2,-32760
+! .*	4b ff ff 91 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 50 	addi    r3,r2,-32688
+! .*	4b ff ff 85 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	f9 43 80 08 	std     r10,-32760\(r3\)
+  .*	3d 23 00 00 	addis   r9,r3,0
+*************** Disassembly of section \.text:
+*** 55,60 ****
+--- 54,60 ----
+  .*	e9 4d 00 02 	lwa     r10,0\(r13\)
+  .*	3d 2d 00 00 	addis   r9,r13,0
+  .*	a9 49 00 00 	lha     r10,0\(r9\)
++ .*	60 00 00 00 	nop
+  .*	00 00 00 00 .*
+  .*	00 01 02 20 .*
+  .* <__glink_PLTresolve>:
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsso.g ./ld/testsuite/ld-powerpc/tlsso.g
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsso.g	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsso.g	2012-04-26 21:23:20.063844933 +0930
+***************
+*** 7,13 ****
+  .*: +file format elf64-powerpc
+  
+  Contents of section \.got:
+! .* 00000000 00018778 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+--- 7,13 ----
+  .*: +file format elf64-powerpc
+  
+  Contents of section \.got:
+! .* 00000000 00018780 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+  .* 00000000 00000000 00000000 00000000  .*
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsso.r ./ld/testsuite/ld-powerpc/tlsso.r
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlsso.r	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlsso.r	2012-04-26 21:23:20.063844933 +0930
+*************** Relocation section '\.rela\.dyn' at offs
+*** 49,57 ****
+  [0-9a-f ]+R_PPC64_TPREL16 +0+60 le0 \+ 0
+  [0-9a-f ]+R_PPC64_TPREL16_HA +0+68 le1 \+ 0
+  [0-9a-f ]+R_PPC64_TPREL16_LO +0+68 le1 \+ 0
+! [0-9a-f ]+R_PPC64_TPREL16_DS +0+105f0 \.tdata \+ 28
+! [0-9a-f ]+R_PPC64_TPREL16_HA +0+105f0 \.tdata \+ 30
+! [0-9a-f ]+R_PPC64_TPREL16_LO +0+105f0 \.tdata \+ 30
+  [0-9a-f ]+R_PPC64_DTPMOD64 +0+
+  [0-9a-f ]+R_PPC64_DTPREL64 +0+
+  [0-9a-f ]+R_PPC64_DTPREL64 +0+18
+--- 49,57 ----
+  [0-9a-f ]+R_PPC64_TPREL16 +0+60 le0 \+ 0
+  [0-9a-f ]+R_PPC64_TPREL16_HA +0+68 le1 \+ 0
+  [0-9a-f ]+R_PPC64_TPREL16_LO +0+68 le1 \+ 0
+! [0-9a-f ]+R_PPC64_TPREL16_DS +0+105f8 \.tdata \+ 28
+! [0-9a-f ]+R_PPC64_TPREL16_HA +0+105f8 \.tdata \+ 30
+! [0-9a-f ]+R_PPC64_TPREL16_LO +0+105f8 \.tdata \+ 30
+  [0-9a-f ]+R_PPC64_DTPMOD64 +0+
+  [0-9a-f ]+R_PPC64_DTPREL64 +0+
+  [0-9a-f ]+R_PPC64_DTPREL64 +0+18
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlstocso.d ./ld/testsuite/ld-powerpc/tlstocso.d
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/tlstocso.d	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-powerpc/tlstocso.d	2012-04-26 21:20:50.139371396 +0930
+*************** Disassembly of section \.text:
+*** 12,33 ****
+  .*	f8 41 00 28 	std     r2,40\(r1\)
+  .*	e9 62 80 70 	ld      r11,-32656\(r2\)
+  .*	7d 69 03 a6 	mtctr   r11
+- .*	e9 62 80 80 	ld      r11,-32640\(r2\)
+  .*	e8 42 80 78 	ld      r2,-32648\(r2\)
+  .*	4e 80 04 20 	bctr
+  
+  .* <_start>:
+  .*	38 62 80 08 	addi    r3,r2,-32760
+! .*	4b ff ff e5 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 18 	addi    r3,r2,-32744
+! .*	4b ff ff d9 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 28 	addi    r3,r2,-32728
+! .*	4b ff ff cd 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 38 	addi    r3,r2,-32712
+! .*	4b ff ff c1 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	39 23 80 40 	addi    r9,r3,-32704
+  .*	3d 23 00 00 	addis   r9,r3,0
+--- 12,32 ----
+  .*	f8 41 00 28 	std     r2,40\(r1\)
+  .*	e9 62 80 70 	ld      r11,-32656\(r2\)
+  .*	7d 69 03 a6 	mtctr   r11
+  .*	e8 42 80 78 	ld      r2,-32648\(r2\)
+  .*	4e 80 04 20 	bctr
+  
+  .* <_start>:
+  .*	38 62 80 08 	addi    r3,r2,-32760
+! .*	4b ff ff e9 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 18 	addi    r3,r2,-32744
+! .*	4b ff ff dd 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 28 	addi    r3,r2,-32728
+! .*	4b ff ff d1 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	38 62 80 38 	addi    r3,r2,-32712
+! .*	4b ff ff c5 	bl      .*
+  .*	e8 41 00 28 	ld      r2,40\(r1\)
+  .*	39 23 80 40 	addi    r9,r3,-32704
+  .*	3d 23 00 00 	addis   r9,r3,0
+*************** Disassembly of section \.text:
+*** 39,44 ****
+--- 38,44 ----
+  .*	89 4d 00 00 	lbz     r10,0\(r13\)
+  .*	3d 2d 00 00 	addis   r9,r13,0
+  .*	99 49 00 00 	stb     r10,0\(r9\)
++ .*	60 00 00 00 	nop
+  .*	00 00 00 00 .*
+  .*	00 01 02 18 .*
+  .* <__glink_PLTresolve>:
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-selective/selective.exp ./ld/testsuite/ld-selective/selective.exp
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-selective/selective.exp	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-selective/selective.exp	2012-04-26 21:59:37.251435320 +0930
+*************** set seltests {
+*** 60,66 ****
+  }
+  
+  set cflags "-w -O -ffunction-sections -fdata-sections"
+! set cxxflags "-fvtable-gc -fno-exceptions -fno-rtti"
+  set ldflags "--gc-sections -Bstatic"
+  
+  if [istarget mips*-*] {
+--- 60,66 ----
+  }
+  
+  set cflags "-w -O -ffunction-sections -fdata-sections"
+! set cxxflags "-fno-exceptions -fno-rtti"
+  set ldflags "--gc-sections -Bstatic"
+  
+  if [istarget mips*-*] {
+diff -rcp ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-elf/new.cc ./ld/testsuite/ld-elf/new.cc
+*** ../binutils-2.20.51.0.2.orig/ld/testsuite/ld-elf/new.cc	2012-04-26 22:03:49.379365890 +0930
+--- ./ld/testsuite/ld-elf/new.cc	2012-04-26 21:59:37.251435320 +0930
+***************
+*** 1,5 ****
+  #include <new>
+- #include <exception_defines.h>
+  
+  using std::bad_alloc;
+  
+--- 1,4 ----

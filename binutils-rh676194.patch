@@ -1,0 +1,5908 @@
+diff -rup a/bfd/elf-bfd.h b/bfd/elf-bfd.h
+--- a/bfd/elf-bfd.h	2011-12-16 00:09:25.632026228 -0700
++++ b/bfd/elf-bfd.h	2011-12-16 00:01:26.738804788 -0700
+@@ -1,6 +1,6 @@
+ /* BFD back-end data structures for ELF files.
+    Copyright 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001,
+-   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
++   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+    Free Software Foundation, Inc.
+    Written by Cygnus Support.
+ 
+@@ -396,12 +396,51 @@ struct eh_frame_hdr_info
+   bfd_boolean table;
+ };
+ 
++/* Enum used to identify target specific extensions to the elf_obj_tdata
++   and elf_link_hash_table structures.  Note the enums deliberately start
++   from 1 so that we can detect an uninitialized field.  The generic value
++   is last so that additions to this enum do not need to modify more than
++   one line.  */
++enum elf_target_id
++{
++  ALPHA_ELF_DATA = 1,
++  ARM_ELF_DATA,
++  AVR_ELF_DATA,
++  BFIN_ELF_DATA,
++  CRIS_ELF_DATA,
++  FRV_ELF_DATA,
++  HPPA32_ELF_DATA,
++  HPPA64_ELF_DATA,
++  I386_ELF_DATA,
++  IA64_ELF_DATA,
++  LM32_ELF_DATA,
++  M32R_ELF_DATA,
++  M68HC11_ELF_DATA,
++  M68K_ELF_DATA,
++  MICROBLAZE_ELF_DATA,
++  MIPS_ELF_DATA,
++  MN10300_ELF_DATA,
++  PPC32_ELF_DATA,
++  PPC64_ELF_DATA,
++  S390_ELF_DATA,
++  SH_ELF_DATA,
++  SPARC_ELF_DATA,
++  SPU_ELF_DATA,
++  X86_64_ELF_DATA,
++  XTENSA_ELF_DATA,
++  GENERIC_ELF_DATA
++};
++
+ /* ELF linker hash table.  */
+ 
+ struct elf_link_hash_table
+ {
+   struct bfd_link_hash_table root;
+ 
++  /* An identifier used to distinguish different target
++     specific extensions to this structure.  */
++  enum elf_target_id hash_table_id;
++
+   /* Whether we have created the special dynamic sections required
+      when linking against or generating a shared object.  */
+   bfd_boolean dynamic_sections_created;
+@@ -509,6 +548,8 @@ struct elf_link_hash_table
+ 
+ #define elf_hash_table(p) ((struct elf_link_hash_table *) ((p)->hash))
+ 
++#define elf_hash_table_id(table)	((table) -> hash_table_id)
++
+ /* Returns TRUE if the hash table is a struct elf_link_hash_table.  */
+ #define is_elf_hash_table(htab)					      	\
+   (((struct bfd_link_hash_table *) (htab))->type == bfd_link_elf_hash_table)
+@@ -1418,27 +1459,6 @@ enum
+   Tag_compatibility = 32
+ };
+ 
+-/* Enum used to identify target specific extensions to the elf_obj_tdata
+-   structure.  Note the enums deliberately start from 1 so that we can
+-   detect an uninitialized field.  The generic value is last so that
+-   additions to this enum do not need to modify more than one line.  */
+-enum elf_object_id
+-{
+-  ALPHA_ELF_TDATA = 1,
+-  ARM_ELF_TDATA,
+-  HPPA_ELF_TDATA,
+-  I386_ELF_TDATA,
+-  MIPS_ELF_TDATA,
+-  PPC32_ELF_TDATA,
+-  PPC64_ELF_TDATA,
+-  S390_ELF_TDATA,
+-  SH_ELF_TDATA,
+-  SPARC_ELF_TDATA,
+-  X86_64_ELF_TDATA,
+-  XTENSA_ELF_TDATA,
+-  GENERIC_ELF_TDATA
+-};
+-
+ /* Some private data is stashed away for future use using the tdata pointer
+    in the bfd structure.  */
+ 
+@@ -1603,7 +1623,7 @@ struct elf_obj_tdata
+ 
+   /* An identifier used to distinguish different target
+      specific extensions to this structure.  */
+-  enum elf_object_id object_id;
++  enum elf_target_id object_id;
+ };
+ 
+ #define elf_tdata(bfd)		((bfd) -> tdata.elf_obj_data)
+@@ -1710,7 +1730,7 @@ extern unsigned long bfd_elf_gnu_hash
+ extern bfd_reloc_status_type bfd_elf_generic_reloc
+   (bfd *, arelent *, asymbol *, void *, asection *, bfd *, char **);
+ extern bfd_boolean bfd_elf_allocate_object
+-  (bfd *, size_t, enum elf_object_id);
++  (bfd *, size_t, enum elf_target_id);
+ extern bfd_boolean bfd_elf_make_generic_object
+   (bfd *);
+ extern bfd_boolean bfd_elf_mkcorefile
+@@ -1734,7 +1754,7 @@ extern bfd_boolean _bfd_elf_link_hash_ta
+   (struct elf_link_hash_table *, bfd *,
+    struct bfd_hash_entry *(*)
+      (struct bfd_hash_entry *, struct bfd_hash_table *, const char *),
+-   unsigned int);
++   unsigned int, enum elf_target_id);
+ extern bfd_boolean _bfd_elf_slurp_version_tables
+   (bfd *, bfd_boolean);
+ extern bfd_boolean _bfd_elf_merge_sections
+diff -rup a/bfd/elf-m10300.c b/bfd/elf-m10300.c
+--- a/bfd/elf-m10300.c	2011-12-16 00:09:25.640026234 -0700
++++ b/bfd/elf-m10300.c	2011-12-16 00:01:26.743804790 -0700
+@@ -1,6 +1,6 @@
+ /* Matsushita 10300 specific support for 32-bit ELF
+    Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+-   2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -98,7 +98,8 @@ struct elf32_mn10300_link_hash_table
+ /* Get the MN10300 ELF linker hash table from a link_info structure.  */
+ 
+ #define elf32_mn10300_hash_table(p) \
+-  ((struct elf32_mn10300_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == MN10300_ELF_DATA ? ((struct elf32_mn10300_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define elf32_mn10300_link_hash_traverse(table, func, info)		\
+   (elf_link_hash_traverse						\
+@@ -2075,6 +2076,8 @@ mn10300_elf_relax_section (bfd *abfd,
+ 
+   /* We need a pointer to the mn10300 specific hash table.  */
+   hash_table = elf32_mn10300_hash_table (link_info);
++  if (hash_table == NULL)
++    return FALSE;
+ 
+   /* Initialize fields in each hash table entry the first time through.  */
+   if ((hash_table->flags & MN10300_HASH_ENTRIES_INITIALIZED) == 0)
+@@ -3976,7 +3979,8 @@ elf32_mn10300_link_hash_table_create (bf
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      elf32_mn10300_link_hash_newfunc,
+-				      sizeof (struct elf32_mn10300_link_hash_entry)))
++				      sizeof (struct elf32_mn10300_link_hash_entry),
++				      MN10300_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -3993,7 +3997,8 @@ elf32_mn10300_link_hash_table_create (bf
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->static_hash_table->root, abfd,
+ 				      elf32_mn10300_link_hash_newfunc,
+-				      sizeof (struct elf32_mn10300_link_hash_entry)))
++				      sizeof (struct elf32_mn10300_link_hash_entry),
++				      MN10300_ELF_DATA))
+     {
+       free (ret->static_hash_table);
+       free (ret);
+Only in b/bfd: elf-m10300.c.orig
+diff -rup a/bfd/elf.c b/bfd/elf.c
+--- a/bfd/elf.c	2011-12-16 00:09:25.525026182 -0700
++++ b/bfd/elf.c	2011-12-16 00:01:26.745804791 -0700
+@@ -232,7 +232,7 @@ bfd_elf_gnu_hash (const char *namearg)
+ bfd_boolean
+ bfd_elf_allocate_object (bfd *abfd,
+ 			 size_t object_size,
+-			 enum elf_object_id object_id)
++			 enum elf_target_id object_id)
+ {
+   BFD_ASSERT (object_size >= sizeof (struct elf_obj_tdata));
+   abfd->tdata.any = bfd_zalloc (abfd, object_size);
+@@ -249,7 +249,7 @@ bfd_boolean
+ bfd_elf_make_generic_object (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_obj_tdata),
+-				  GENERIC_ELF_TDATA);
++				  GENERIC_ELF_DATA);
+ }
+ 
+ bfd_boolean
+diff -rup a/bfd/elf32-arm.c b/bfd/elf32-arm.c
+--- a/bfd/elf32-arm.c	2011-12-16 00:09:25.649026238 -0700
++++ b/bfd/elf32-arm.c	2011-12-16 00:01:26.760804798 -0700
+@@ -2439,13 +2439,13 @@ struct elf_arm_obj_tdata
+ #define is_arm_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+    && elf_tdata (bfd) != NULL \
+-   && elf_object_id (bfd) == ARM_ELF_TDATA)
++   && elf_object_id (bfd) == ARM_ELF_DATA)
+ 
+ static bfd_boolean
+ elf32_arm_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_arm_obj_tdata),
+-				  ARM_ELF_TDATA);
++				  ARM_ELF_DATA);
+ }
+ 
+ /* The ARM linker needs to keep track of the number of relocs that it
+@@ -2515,7 +2515,8 @@ struct elf32_arm_link_hash_entry
+ 
+ /* Get the ARM elf linker hash table from a link_info structure.  */
+ #define elf32_arm_hash_table(info) \
+-  ((struct elf32_arm_link_hash_table *) ((info)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((info)->hash)) \
++  == ARM_ELF_DATA ? ((struct elf32_arm_link_hash_table *) ((info)->hash)) : NULL)
+ 
+ #define arm_stub_hash_lookup(table, string, create, copy) \
+   ((struct elf32_arm_stub_hash_entry *) \
+@@ -2744,6 +2745,9 @@ create_got_section (bfd *dynobj, struct
+   struct elf32_arm_link_hash_table *htab;
+ 
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   /* BPABI objects never have a GOT, or associated sections.  */
+   if (htab->symbian_p)
+     return TRUE;
+@@ -2773,6 +2777,9 @@ elf32_arm_create_dynamic_sections (bfd *
+   struct elf32_arm_link_hash_table *htab;
+ 
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (!htab->sgot && !create_got_section (dynobj, info))
+     return FALSE;
+ 
+@@ -2891,7 +2898,8 @@ elf32_arm_link_hash_table_create (bfd *a
+ 
+   if (!_bfd_elf_link_hash_table_init (& ret->root, abfd,
+ 				      elf32_arm_link_hash_newfunc,
+-				      sizeof (struct elf32_arm_link_hash_entry)))
++				      sizeof (struct elf32_arm_link_hash_entry),
++				      ARM_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -3058,6 +3066,8 @@ arm_type_of_stub (struct bfd_link_info *
+     return stub_type;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return stub_type;
+ 
+   thumb_only = using_thumb_only (globals);
+ 
+@@ -3437,8 +3447,8 @@ arm_build_one_stub (struct bfd_hash_entr
+ {
+ #define MAXRELOCS 2
+   struct elf32_arm_stub_hash_entry *stub_entry;
++  struct elf32_arm_link_hash_table *globals;
+   struct bfd_link_info *info;
+-  struct elf32_arm_link_hash_table *htab;
+   asection *stub_sec;
+   bfd *stub_bfd;
+   bfd_vma stub_addr;
+@@ -3448,7 +3458,6 @@ arm_build_one_stub (struct bfd_hash_entr
+   int size;
+   const insn_sequence *template_sequence;
+   int i;
+-  struct elf32_arm_link_hash_table * globals;
+   int stub_reloc_idx[MAXRELOCS] = {-1, -1};
+   int stub_reloc_offset[MAXRELOCS] = {0, 0};
+   int nrelocs = 0;
+@@ -3458,11 +3467,12 @@ arm_build_one_stub (struct bfd_hash_entr
+   info = (struct bfd_link_info *) in_arg;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return FALSE;
+ 
+-  htab = elf32_arm_hash_table (info);
+   stub_sec = stub_entry->stub_sec;
+ 
+-  if ((htab->fix_cortex_a8 < 0)
++  if ((globals->fix_cortex_a8 < 0)
+       != (stub_entry->stub_type >= arm_stub_a8_veneer_lwm))
+     /* We have to do the a8 fixes last, as they are less aligned than
+        the other veneers.  */
+@@ -3708,6 +3718,8 @@ elf32_arm_setup_section_lists (bfd *outp
+   bfd_size_type amt;
+   struct elf32_arm_link_hash_table *htab = elf32_arm_hash_table (info);
+ 
++  if (htab == NULL)
++    return 0;
+   if (! is_elf_hash_table (htab))
+     return 0;
+ 
+@@ -3779,6 +3791,9 @@ elf32_arm_next_input_section (struct bfd
+ {
+   struct elf32_arm_link_hash_table *htab = elf32_arm_hash_table (info);
+ 
++  if (htab == NULL)
++    return;
++
+   if (isec->output_section->index <= htab->top_index)
+     {
+       asection **list = htab->input_list + isec->output_section->index;
+@@ -3938,6 +3953,9 @@ cortex_a8_erratum_scan (bfd *input_bfd,
+   unsigned int num_a8_fixes = *num_a8_fixes_p;
+   unsigned int a8_fix_table_size = *a8_fix_table_size_p;
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   for (section = input_bfd->sections;
+        section != NULL;
+        section = section->next)
+@@ -4229,6 +4247,9 @@ elf32_arm_size_stubs (bfd *output_bfd,
+   struct a8_erratum_reloc *a8_relocs = NULL;
+   unsigned int num_a8_relocs = 0, a8_reloc_table_size = 10, i;
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   if (htab->fix_cortex_a8)
+     {
+       a8_fixes = (struct a8_erratum_fix *)
+@@ -4448,7 +4469,9 @@ elf32_arm_size_stubs (bfd *output_bfd,
+ 			     use the PLT stub as target address to
+ 			     decide whether a branch stub is
+ 			     needed.  */
+-			  if (globals->splt != NULL && hash != NULL
++			  if (globals != NULL
++			      && globals->splt != NULL
++			      && hash != NULL
+ 			      && hash->root.plt.offset != (bfd_vma) -1)
+ 			    {
+ 			      sym_sec = globals->splt;
+@@ -4473,7 +4496,9 @@ elf32_arm_size_stubs (bfd *output_bfd,
+ 			  struct elf32_arm_link_hash_table *globals =
+ 			    elf32_arm_hash_table (info);
+ 
+-			  if (globals->splt != NULL && hash != NULL
++			  if (globals != NULL
++			      && globals->splt != NULL
++			      && hash != NULL
+ 			      && hash->root.plt.offset != (bfd_vma) -1)
+ 			    {
+ 			      sym_sec = globals->splt;
+@@ -4751,6 +4776,8 @@ elf32_arm_build_stubs (struct bfd_link_i
+   struct elf32_arm_link_hash_table *htab;
+ 
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   for (stub_sec = htab->stub_bfd->sections;
+        stub_sec != NULL;
+@@ -4796,6 +4823,8 @@ find_thumb_glue (struct bfd_link_info *l
+ 
+   /* We need a pointer to the armelf specific hash table.  */
+   hash_table = elf32_arm_hash_table (link_info);
++  if (hash_table == NULL)
++    return NULL;
+ 
+   tmp_name = (char *) bfd_malloc ((bfd_size_type) strlen (name)
+                                   + strlen (THUMB2ARM_GLUE_ENTRY_NAME) + 1);
+@@ -4830,6 +4859,8 @@ find_arm_glue (struct bfd_link_info *lin
+ 
+   /* We need a pointer to the elfarm specific hash table.  */
+   hash_table = elf32_arm_hash_table (link_info);
++  if (hash_table == NULL)
++    return NULL;
+ 
+   tmp_name = (char *) bfd_malloc ((bfd_size_type) strlen (name)
+                                   + strlen (ARM2THUMB_GLUE_ENTRY_NAME) + 1);
+@@ -4992,7 +5023,6 @@ record_arm_to_thumb_glue (struct bfd_lin
+   bfd_size_type size;
+ 
+   globals = elf32_arm_hash_table (link_info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -5065,7 +5095,6 @@ record_arm_bx_glue (struct bfd_link_info
+     return;
+ 
+   globals = elf32_arm_hash_table (link_info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -5162,7 +5191,6 @@ record_vfp11_erratum_veneer (struct bfd_
+   elf32_vfp11_erratum_list *newerr;
+ 
+   hash_table = elf32_arm_hash_table (link_info);
+-
+   BFD_ASSERT (hash_table != NULL);
+   BFD_ASSERT (hash_table->bfd_of_glue_owner != NULL);
+ 
+@@ -5327,7 +5355,6 @@ bfd_elf32_arm_get_bfd_for_interworking (
+   BFD_ASSERT (!(abfd->flags & DYNAMIC));
+ 
+   globals = elf32_arm_hash_table (info);
+-
+   BFD_ASSERT (globals != NULL);
+ 
+   if (globals->bfd_of_glue_owner != NULL)
+@@ -5367,7 +5394,6 @@ bfd_elf32_arm_process_before_allocation
+   /* Here we have a bfd that is to be included on the link.  We have a
+      hook to do reloc rummaging, before section sizes are nailed down.  */
+   globals = elf32_arm_hash_table (link_info);
+-
+   BFD_ASSERT (globals != NULL);
+ 
+   check_use_blx (globals);
+@@ -5568,6 +5594,9 @@ bfd_elf32_arm_set_cortex_a8_fix (bfd *ob
+   struct elf32_arm_link_hash_table *globals = elf32_arm_hash_table (link_info);
+   obj_attribute *out_attr = elf_known_obj_attributes_proc (obfd);
+ 
++  if (globals == NULL)
++    return;
++
+   if (globals->fix_cortex_a8 == -1)
+     {
+       /* Turn on Cortex-A8 erratum workaround for ARMv7-A.  */
+@@ -5587,6 +5616,8 @@ bfd_elf32_arm_set_vfp11_fix (bfd *obfd,
+   struct elf32_arm_link_hash_table *globals = elf32_arm_hash_table (link_info);
+   obj_attribute *out_attr = elf_known_obj_attributes_proc (obfd);
+ 
++  if (globals == NULL)
++    return;
+   /* We assume that ARMv7+ does not need the VFP11 denorm erratum fix.  */
+   if (out_attr[Tag_CPU_arch].i >= TAG_CPU_ARCH_V7)
+     {
+@@ -5890,6 +5921,9 @@ bfd_elf32_arm_vfp11_erratum_scan (bfd *a
+   struct elf32_arm_link_hash_table *globals = elf32_arm_hash_table (link_info);
+   int use_vector = (globals->vfp11_fix == BFD_ARM_VFP11_FIX_VECTOR);
+ 
++  if (globals == NULL)
++    return FALSE;
++
+   /* We use a simple FSM to match troublesome VFP11 instruction sequences.
+      The states transition as follows:
+ 
+@@ -6113,6 +6147,8 @@ bfd_elf32_arm_vfp11_fix_veneer_locations
+     return;
+ 
+   globals = elf32_arm_hash_table (link_info);
++  if (globals == NULL)
++    return;
+ 
+   tmp_name = (char *) bfd_malloc ((bfd_size_type) strlen
+                                   (VFP11_ERRATUM_VENEER_ENTRY_NAME) + 10);
+@@ -6195,6 +6231,8 @@ bfd_elf32_arm_set_target_relocs (struct
+   struct elf32_arm_link_hash_table *globals;
+ 
+   globals = elf32_arm_hash_table (link_info);
++  if (globals == NULL)
++    return;
+ 
+   globals->target1_is_rel = target1_is_rel;
+   if (strcmp (target2_type, "rel") == 0)
+@@ -6270,7 +6308,6 @@ elf32_thumb_to_arm_stub (struct bfd_link
+     return FALSE;
+ 
+   globals = elf32_arm_hash_table (info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -6368,7 +6405,6 @@ elf32_arm_create_thumb_stub (struct bfd_
+     return NULL;
+ 
+   globals = elf32_arm_hash_table (info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -6464,7 +6500,6 @@ elf32_arm_to_thumb_stub (struct bfd_link
+   struct elf32_arm_link_hash_table * globals;
+ 
+   globals = elf32_arm_hash_table (info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -6519,7 +6554,6 @@ elf32_arm_to_thumb_export_stub (struct e
+     return TRUE;
+ 
+   globals = elf32_arm_hash_table (info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -6555,7 +6589,6 @@ elf32_arm_bx_glue (struct bfd_link_info
+   struct elf32_arm_link_hash_table *globals;
+ 
+   globals = elf32_arm_hash_table (info);
+-
+   BFD_ASSERT (globals != NULL);
+   BFD_ASSERT (globals->bfd_of_glue_owner != NULL);
+ 
+@@ -6593,6 +6626,9 @@ elf32_arm_begin_write_processing (bfd *a
+     return;
+ 
+   globals = elf32_arm_hash_table (link_info);
++  if (globals == NULL)
++    return;
++
+   /* If blx is available then exported Thumb symbols are OK and there is
+      nothing to do.  */
+   if (globals->use_blx)
+@@ -6770,6 +6806,8 @@ elf32_arm_final_link_relocate (reloc_how
+   struct elf32_arm_link_hash_table * globals;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return bfd_reloc_notsupported;
+ 
+   BFD_ASSERT (is_arm_elf (input_bfd));
+ 
+@@ -6873,7 +6911,7 @@ elf32_arm_final_link_relocate (reloc_how
+ 	 run time.  */
+       if ((info->shared || globals->root.is_relocatable_executable)
+ 	  && (input_section->flags & SEC_ALLOC)
+-	  && !(elf32_arm_hash_table (info)->vxworks_p
++	  && !(globals->vxworks_p
+ 	       && strcmp (input_section->output_section->name,
+ 			  ".tls_vars") == 0)
+ 	  && ((r_type != R_ARM_REL32 && r_type != R_ARM_REL32_NOI)
+@@ -8740,6 +8778,8 @@ elf32_arm_relocate_section (bfd *
+   struct elf32_arm_link_hash_table * globals;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return FALSE;
+ 
+   symtab_hdr = & elf_symtab_hdr (input_bfd);
+   sym_hashes = elf_sym_hashes (input_bfd);
+@@ -9305,6 +9345,9 @@ elf32_arm_final_link (bfd *abfd, struct
+ {
+   struct elf32_arm_link_hash_table *globals = elf32_arm_hash_table (info);
+ 
++  if (globals == NULL)
++    return FALSE;
++
+   /* Invoke the regular ELF backend linker to do all the work.  */
+   if (!bfd_elf_final_link (abfd, info))
+     return FALSE;
+@@ -10397,6 +10440,8 @@ elf32_arm_gc_sweep_hook (bfd *
+     return TRUE;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return FALSE;
+ 
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+@@ -10443,7 +10488,7 @@ elf32_arm_gc_sweep_hook (bfd *
+ 	  break;
+ 
+ 	case R_ARM_TLS_LDM32:
+-	  elf32_arm_hash_table (info)->tls_ldm_got.refcount -= 1;
++	  globals->tls_ldm_got.refcount -= 1;
+ 	  break;
+ 
+ 	case R_ARM_ABS32:
+@@ -10539,6 +10584,9 @@ elf32_arm_check_relocs (bfd *abfd, struc
+   BFD_ASSERT (is_arm_elf (abfd));
+ 
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   sreloc = NULL;
+ 
+   /* Create dynamic sections for relocatable executables so that we can
+@@ -11061,6 +11109,9 @@ elf32_arm_adjust_dynamic_symbol (struct
+   struct elf32_arm_link_hash_table *globals;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+ 
+   /* Make sure we know what is going on here.  */
+@@ -11199,6 +11250,8 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (htab->root.dynamic_sections_created
+       && h->plt.refcount > 0)
+@@ -11428,7 +11481,7 @@ allocate_dynrelocs (struct elf_link_hash
+ 	    }
+ 	}
+ 
+-      if (elf32_arm_hash_table (info)->vxworks_p)
++      if (htab->vxworks_p)
+ 	{
+ 	  struct elf32_arm_relocs_copied **pp;
+ 
+@@ -11549,6 +11602,9 @@ bfd_elf32_arm_set_byteswap_code (struct
+   struct elf32_arm_link_hash_table *globals;
+ 
+   globals = elf32_arm_hash_table (info);
++  if (globals == NULL)
++    return;
++
+   globals->byteswap_code = byteswap_code;
+ }
+ 
+@@ -11566,6 +11622,9 @@ elf32_arm_size_dynamic_sections (bfd * o
+   struct elf32_arm_link_hash_table *htab;
+ 
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+   BFD_ASSERT (dynobj != NULL);
+   check_use_blx (htab);
+@@ -11592,7 +11651,7 @@ elf32_arm_size_dynamic_sections (bfd * o
+       bfd_size_type locsymcount;
+       Elf_Internal_Shdr *symtab_hdr;
+       asection *srel;
+-      bfd_boolean is_vxworks = elf32_arm_hash_table (info)->vxworks_p;
++      bfd_boolean is_vxworks = htab->vxworks_p;
+ 
+       if (! is_arm_elf (ibfd))
+ 	continue;
+@@ -11840,6 +11899,9 @@ elf32_arm_finish_dynamic_symbol (bfd * o
+ 
+   dynobj = elf_hash_table (info)->dynobj;
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   eh = (struct elf32_arm_link_hash_entry *) h;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+@@ -12130,20 +12192,23 @@ elf32_arm_finish_dynamic_sections (bfd *
+   bfd * dynobj;
+   asection * sgot;
+   asection * sdyn;
++  struct elf32_arm_link_hash_table *htab;
++
++  htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   dynobj = elf_hash_table (info)->dynobj;
+ 
+   sgot = bfd_get_section_by_name (dynobj, ".got.plt");
+-  BFD_ASSERT (elf32_arm_hash_table (info)->symbian_p || sgot != NULL);
++  BFD_ASSERT (htab->symbian_p || sgot != NULL);
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+ 
+   if (elf_hash_table (info)->dynamic_sections_created)
+     {
+       asection *splt;
+       Elf32_External_Dyn *dyncon, *dynconend;
+-      struct elf32_arm_link_hash_table *htab;
+ 
+-      htab = elf32_arm_hash_table (info);
+       splt = bfd_get_section_by_name (dynobj, ".plt");
+       BFD_ASSERT (splt != NULL && sdyn != NULL);
+ 
+@@ -12302,7 +12367,7 @@ elf32_arm_finish_dynamic_sections (bfd *
+ 	}
+ 
+       /* Fill in the first entry in the procedure linkage table.  */
+-      if (splt->size > 0 && elf32_arm_hash_table (info)->plt_header_size)
++      if (splt->size > 0 && htab->plt_header_size)
+ 	{
+ 	  const bfd_vma *plt0_entry;
+ 	  bfd_vma got_address, plt_address, got_displacement;
+@@ -12429,7 +12494,7 @@ elf32_arm_post_process_headers (bfd * ab
+   if (link_info)
+     {
+       globals = elf32_arm_hash_table (link_info);
+-      if (globals->byteswap_code)
++      if (globals != NULL && globals->byteswap_code)
+ 	i_ehdrp->e_flags |= EF_ARM_BE8;
+     }
+ }
+@@ -12655,10 +12720,8 @@ elf32_arm_output_map_sym (output_arch_sy
+ 			  bfd_vma offset)
+ {
+   static const char *names[3] = {"$a", "$t", "$d"};
+-  struct elf32_arm_link_hash_table *htab;
+   Elf_Internal_Sym sym;
+ 
+-  htab = elf32_arm_hash_table (osi->info);
+   sym.st_value = osi->sec->output_section->vma
+ 		 + osi->sec->output_offset
+ 		 + offset;
+@@ -12680,8 +12743,6 @@ elf32_arm_output_plt_map (struct elf_lin
+   struct elf32_arm_link_hash_entry *eh;
+   bfd_vma addr;
+ 
+-  htab = elf32_arm_hash_table (osi->info);
+-
+   if (h->root.type == bfd_link_hash_indirect)
+     return TRUE;
+ 
+@@ -12694,6 +12755,10 @@ elf32_arm_output_plt_map (struct elf_lin
+   if (h->plt.offset == (bfd_vma) -1)
+     return TRUE;
+ 
++  htab = elf32_arm_hash_table (osi->info);
++  if (htab == NULL)
++    return FALSE;
++
+   eh = (struct elf32_arm_link_hash_entry *) h;
+   addr = h->plt.offset;
+   if (htab->symbian_p)
+@@ -12753,10 +12818,8 @@ static bfd_boolean
+ elf32_arm_output_stub_sym (output_arch_syminfo *osi, const char *name,
+ 			   bfd_vma offset, bfd_vma size)
+ {
+-  struct elf32_arm_link_hash_table *htab;
+   Elf_Internal_Sym sym;
+ 
+-  htab = elf32_arm_hash_table (osi->info);
+   sym.st_value = osi->sec->output_section->vma
+ 		 + osi->sec->output_offset
+ 		 + offset;
+@@ -12773,7 +12836,6 @@ arm_map_one_stub (struct bfd_hash_entry
+ {
+   struct elf32_arm_stub_hash_entry *stub_entry;
+   struct bfd_link_info *info;
+-  struct elf32_arm_link_hash_table *htab;
+   asection *stub_sec;
+   bfd_vma addr;
+   char *stub_name;
+@@ -12790,7 +12852,6 @@ arm_map_one_stub (struct bfd_hash_entry
+ 
+   info = osi->info;
+ 
+-  htab = elf32_arm_hash_table (info);
+   stub_sec = stub_entry->stub_sec;
+ 
+   /* Ensure this stub is attached to the current section being
+@@ -12891,6 +12952,9 @@ elf32_arm_output_arch_local_syms (bfd *o
+   bfd_size_type size;
+ 
+   htab = elf32_arm_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   check_use_blx (htab);
+ 
+   osi.finfo = finfo;
+@@ -13214,6 +13278,9 @@ elf32_arm_write_section (bfd *output_bfd
+   bfd_byte tmp;
+   unsigned int i;
+ 
++  if (globals == NULL)
++    return FALSE;
++
+   /* If this section has not been allocated an _arm_elf_section_data
+      structure then we cannot record anything.  */
+   arm_data = get_arm_elf_section_data (sec);
+Only in b/bfd: elf32-arm.c.orig
+diff -rup a/bfd/elf32-avr.c b/bfd/elf32-avr.c
+--- a/bfd/elf32-avr.c	2011-12-16 00:09:25.653026238 -0700
++++ b/bfd/elf32-avr.c	2011-12-16 00:01:26.763804801 -0700
+@@ -1,6 +1,6 @@
+ /* AVR-specific support for 32-bit ELF
+-   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+-   Free Software Foundation, Inc.
++   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
++   2010  Free Software Foundation, Inc.
+    Contributed by Denis Chertykov <denisc@overta.ru>
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -38,7 +38,7 @@ static bfd_boolean debug_stubs = FALSE;
+ 
+ /* We use two hash tables to hold information for linking avr objects.
+ 
+-   The first is the elf32_avr_link_hash_tablse which is derived from the
++   The first is the elf32_avr_link_hash_table which is derived from the
+    stanard ELF linker hash table.  We use this as a place to attach the other
+    hash table and some static information.
+ 
+@@ -104,8 +104,8 @@ struct elf32_avr_link_hash_table
+ /* Various hash macros and functions.  */
+ #define avr_link_hash_table(p) \
+   /* PR 3874: Check that we have an AVR style hash table before using it.  */\
+-  ((p)->hash->table.newfunc != elf32_avr_link_hash_newfunc ? NULL : \
+-   ((struct elf32_avr_link_hash_table *) ((p)->hash)))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == AVR_ELF_DATA ? ((struct elf32_avr_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define avr_stub_hash_entry(ent) \
+   ((struct elf32_avr_stub_hash_entry *)(ent))
+@@ -617,7 +617,8 @@ elf32_avr_link_hash_table_create (bfd *a
+ 
+   if (!_bfd_elf_link_hash_table_init (&htab->etab, abfd,
+                                       elf32_avr_link_hash_newfunc,
+-                                      sizeof (struct elf_link_hash_entry)))
++                                      sizeof (struct elf_link_hash_entry),
++				      AVR_ELF_DATA))
+     {
+       free (htab);
+       return NULL;
+@@ -1167,6 +1168,9 @@ elf32_avr_relocate_section (bfd *output_
+   Elf_Internal_Rela *           relend;
+   struct elf32_avr_link_hash_table * htab = avr_link_hash_table (info);
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = & elf_tdata (input_bfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (input_bfd);
+   relend     = relocs + input_section->reloc_count;
+@@ -2562,7 +2566,7 @@ elf32_avr_setup_section_lists (bfd *outp
+   asection *section;
+   asection **input_list, **list;
+   bfd_size_type amt;
+-  struct elf32_avr_link_hash_table *htab = avr_link_hash_table(info);
++  struct elf32_avr_link_hash_table *htab = avr_link_hash_table (info);
+ 
+   if (htab == NULL || htab->no_stubs)
+     return 0;
+Only in b/bfd: elf32-avr.c.orig
+diff -rup a/bfd/elf32-bfin.c b/bfd/elf32-bfin.c
+--- a/bfd/elf32-bfin.c	2011-12-16 00:09:25.655026238 -0700
++++ b/bfd/elf32-bfin.c	2011-12-16 00:01:26.765804801 -0700
+@@ -1,5 +1,6 @@
+ /* ADI Blackfin BFD support for 32-bit ELF.
+-   Copyright 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   Copyright 2005, 2006, 2007, 2008, 2009, 2010
++   Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -1709,8 +1710,8 @@ bfin_gc_sweep_hook (bfd * abfd,
+ extern const bfd_target bfd_elf32_bfinfdpic_vec;
+ #define IS_FDPIC(bfd) ((bfd)->xvec == &bfd_elf32_bfinfdpic_vec)
+ 
+-/* An extension of the elf hash table data structure, containing some
+-   additional Blackfin-specific data.  */
++/* An extension of the elf hash table data structure,
++   containing some additional Blackfin-specific data.  */
+ struct bfinfdpic_elf_link_hash_table
+ {
+   struct elf_link_hash_table elf;
+@@ -1741,7 +1742,8 @@ struct bfinfdpic_elf_link_hash_table
+ /* Get the Blackfin ELF linker hash table from a link_info structure.  */
+ 
+ #define bfinfdpic_hash_table(info) \
+-  ((struct bfinfdpic_elf_link_hash_table *) ((info)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((info)->hash)) \
++  == BFIN_ELF_DATA ? ((struct bfinfdpic_elf_link_hash_table *) ((info)->hash)) : NULL)
+ 
+ #define bfinfdpic_got_section(info) \
+   (bfinfdpic_hash_table (info)->sgot)
+@@ -1807,7 +1809,8 @@ bfinfdpic_elf_link_hash_table_create (bf
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd,
+ 				      _bfd_elf_link_hash_newfunc,
+-				      sizeof (struct elf_link_hash_entry)))
++				      sizeof (struct elf_link_hash_entry),
++				      BFIN_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -5179,7 +5182,8 @@ bfin_link_hash_table_create (bfd * abfd)
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      bfin_link_hash_newfunc,
+-				      sizeof (struct elf_link_hash_entry)))
++				      sizeof (struct elf_link_hash_entry),
++				      BFIN_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+Only in b/bfd: elf32-bfin.c.orig
+diff -rup a/bfd/elf32-cr16.c b/bfd/elf32-cr16.c
+--- a/bfd/elf32-cr16.c	2011-12-16 00:09:25.656026239 -0700
++++ b/bfd/elf32-cr16.c	2011-12-16 00:01:26.766804801 -0700
+@@ -32,7 +32,8 @@
+    linking with -Bsymbolic.  We store the information in a field
+    extending the regular ELF linker hash table.  */
+ 
+-struct elf32_cr16_link_hash_entry {
++struct elf32_cr16_link_hash_entry
++{
+   /* The basic elf link hash table entry.  */
+   struct elf_link_hash_entry root;
+ 
+@@ -66,35 +67,6 @@ struct elf32_cr16_link_hash_entry {
+   bfd_vma value;
+ };
+ 
+-/* We derive a hash table from the main elf linker hash table so
+-   we can store state variables and a secondary hash table without
+-   resorting to global variables.  */
+-struct elf32_cr16_link_hash_table {
+-  /* The main hash table.  */
+-  struct elf_link_hash_table root;
+-
+-  /* A hash table for static functions.  We could derive a new hash table
+-     instead of using the full elf32_cr16_link_hash_table if we wanted
+-     to save some memory.  */
+-  struct elf32_cr16_link_hash_table *static_hash_table;
+-
+-  /* Random linker state flags.  */
+-#define CR16_HASH_ENTRIES_INITIALIZED 0x1
+-  char flags;
+-};
+-
+-/* For CR16 linker hash table.  */
+-
+-/* Get the CR16 ELF linker hash table from a link_info structure.  */
+-
+-#define elf32_cr16_hash_table(p) \
+-  ((struct elf32_cr16_link_hash_table *) ((p)->hash))
+-
+-#define elf32_cr16_link_hash_traverse(table, func, info)                    \
+- (elf_link_hash_traverse                                                    \
+-  (&(table)->root,                                                          \
+-   (bfd_boolean (*) ((struct elf_link_hash_entry *, void *))) (func), (info)))
+-
+ /* cr16_reloc_map array maps BFD relocation enum into a CRGAS relocation type.  */
+ 
+ struct cr16_reloc_map
+@@ -1698,40 +1670,23 @@ elf32_cr16_link_hash_newfunc (struct bfd
+ static struct bfd_link_hash_table *
+ elf32_cr16_link_hash_table_create (bfd *abfd)
+ {
+-  struct elf32_cr16_link_hash_table *ret;
+-  bfd_size_type amt = sizeof (struct elf32_cr16_link_hash_table);
++  struct elf_link_hash_table *ret;
++  bfd_size_type amt = sizeof (struct elf_link_hash_table);
+ 
+-  ret = (struct elf32_cr16_link_hash_table *) bfd_malloc (amt);
+-  if (ret == (struct elf32_cr16_link_hash_table *) NULL)
++  ret = (struct elf_link_hash_table *) bfd_malloc (amt);
++  if (ret == (struct elf_link_hash_table *) NULL)
+     return NULL;
+ 
+-  if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
++  if (!_bfd_elf_link_hash_table_init (ret, abfd,
+                                       elf32_cr16_link_hash_newfunc,
+-                                      sizeof (struct elf32_cr16_link_hash_entry)))
+-    {
+-      free (ret);
+-      return NULL;
+-    }
+-
+-  ret->flags = 0;
+-  amt = sizeof (struct elf_link_hash_table);
+-  ret->static_hash_table
+-    = (struct elf32_cr16_link_hash_table *) bfd_malloc (amt);
+-  if (ret->static_hash_table == NULL)
++                                      sizeof (struct elf32_cr16_link_hash_entry),
++				      GENERIC_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+     }
+ 
+-  if (!_bfd_elf_link_hash_table_init (&ret->static_hash_table->root, abfd,
+-                                      elf32_cr16_link_hash_newfunc,
+-                                      sizeof (struct elf32_cr16_link_hash_entry)))
+-    {
+-      free (ret->static_hash_table);
+-      free (ret);
+-      return NULL;
+-    }
+-  return &ret->root.root;
++  return &ret->root;
+ }
+ 
+ /* Free an cr16 ELF linker hash table.  */
+@@ -1739,12 +1694,10 @@ elf32_cr16_link_hash_table_create (bfd *
+ static void
+ elf32_cr16_link_hash_table_free (struct bfd_link_hash_table *hash)
+ {
+-  struct elf32_cr16_link_hash_table *ret
+-    = (struct elf32_cr16_link_hash_table *) hash;
++  struct elf_link_hash_table *ret
++    = (struct elf_link_hash_table *) hash;
+ 
+   _bfd_generic_link_hash_table_free
+-    ((struct bfd_link_hash_table *) ret->static_hash_table);
+-  _bfd_generic_link_hash_table_free
+     ((struct bfd_link_hash_table *) ret);
+ }
+ 
+Only in b/bfd: elf32-cr16.c.orig
+diff -rup a/bfd/elf32-cris.c b/bfd/elf32-cris.c
+--- a/bfd/elf32-cris.c	2011-12-16 00:09:25.658026243 -0700
++++ b/bfd/elf32-cris.c	2011-12-16 00:01:26.769804803 -0700
+@@ -1,6 +1,6 @@
+ /* CRIS-specific support for 32-bit ELF.
+-   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+-   Free Software Foundation, Inc.
++   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
++   2010  Free Software Foundation, Inc.
+    Contributed by Axis Communications AB.
+    Written by Hans-Peter Nilsson, based on elf32-fr30.c
+    PIC and shlib bits based primarily on elf32-m68k.c and elf32-i386.c.
+@@ -885,13 +885,14 @@ struct elf_cris_link_hash_table
+ #define elf_cris_link_hash_traverse(table, func, info)			\
+   (elf_link_hash_traverse						\
+    (&(table)->root,							\
+-    (bfd_boolean (*) PARAMS ((struct elf_link_hash_entry *, PTR))) (func), \
++    (bfd_boolean (*) (struct elf_link_hash_entry *, void *)) (func),	\
+     (info)))
+ 
+ /* Get the CRIS ELF linker hash table from a link_info structure.  */
+ 
+ #define elf_cris_hash_table(p) \
+-  ((struct elf_cris_link_hash_table *) (p)->hash)
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == CRIS_ELF_DATA ? ((struct elf_cris_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Get the CRIS ELF linker hash entry from a regular hash entry (the
+    "parent class").  The .root reference is just a simple type
+@@ -903,10 +904,9 @@ struct elf_cris_link_hash_table
+ /* Create an entry in a CRIS ELF linker hash table.  */
+ 
+ static struct bfd_hash_entry *
+-elf_cris_link_hash_newfunc (entry, table, string)
+-     struct bfd_hash_entry *entry;
+-     struct bfd_hash_table *table;
+-     const char *string;
++elf_cris_link_hash_newfunc (struct bfd_hash_entry *entry,
++			    struct bfd_hash_table *table,
++			    const char *string)
+ {
+   struct elf_cris_link_hash_entry *ret =
+     (struct elf_cris_link_hash_entry *) entry;
+@@ -940,8 +940,7 @@ elf_cris_link_hash_newfunc (entry, table
+ /* Create a CRIS ELF linker hash table.  */
+ 
+ static struct bfd_link_hash_table *
+-elf_cris_link_hash_table_create (abfd)
+-     bfd *abfd;
++elf_cris_link_hash_table_create (bfd *abfd)
+ {
+   struct elf_cris_link_hash_table *ret;
+   bfd_size_type amt = sizeof (struct elf_cris_link_hash_table);
+@@ -952,7 +951,8 @@ elf_cris_link_hash_table_create (abfd)
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      elf_cris_link_hash_newfunc,
+-				      sizeof (struct elf_cris_link_hash_entry)))
++				      sizeof (struct elf_cris_link_hash_entry),
++				      CRIS_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -1027,17 +1027,16 @@ static int additional_relocation_error_m
+    copied, for further comments.  */
+ 
+ static bfd_boolean
+-cris_elf_relocate_section (output_bfd, info, input_bfd, input_section,
+-			   contents, relocs, local_syms, local_sections)
+-     bfd *output_bfd ATTRIBUTE_UNUSED;
+-     struct bfd_link_info *info;
+-     bfd *input_bfd;
+-     asection *input_section;
+-     bfd_byte *contents;
+-     Elf_Internal_Rela *relocs;
+-     Elf_Internal_Sym *local_syms;
+-     asection **local_sections;
++cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
++			   struct bfd_link_info *info,
++			   bfd *input_bfd,
++			   asection *input_section,
++			   bfd_byte *contents,
++			   Elf_Internal_Rela *relocs,
++			   Elf_Internal_Sym *local_syms,
++			   asection **local_sections)
+ {
++  struct elf_cris_link_hash_table * htab;
+   bfd *dynobj;
+   Elf_Internal_Shdr *symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes;
+@@ -1049,6 +1048,10 @@ cris_elf_relocate_section (output_bfd, i
+   Elf_Internal_Rela *relend;
+   asection *srelgot;
+ 
++  htab = elf_cris_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+   symtab_hdr = & elf_tdata (input_bfd)->symtab_hdr;
+@@ -1580,8 +1583,6 @@ cris_elf_relocate_section (output_bfd, i
+ 			  indx = elf_section_data (osec)->dynindx;
+ 			  if (indx == 0)
+ 			    {
+-			      struct elf_cris_link_hash_table *htab;
+-			      htab = elf_cris_hash_table (info);
+ 			      osec = htab->root.text_index_section;
+ 			      indx = elf_section_data (osec)->dynindx;
+ 			    }
+@@ -1637,14 +1638,14 @@ cris_elf_relocate_section (output_bfd, i
+ 	    }
+ 
+ 	  BFD_ASSERT ((input_section->flags & SEC_ALLOC) == 0
+-		      || elf_cris_hash_table (info)->dtpmod_refcount != 0);
++		      || htab->dtpmod_refcount != 0);
+ 
+ 	  /* Fill in a R_CRIS_DTPMOD reloc at offset 3 if we haven't
+ 	     already done so.  Note that we do this in .got.plt, not
+ 	     in .got, as .got.plt contains the first part, still the
+ 	     reloc is against .got, because the linker script directs
+ 	     (is required to direct) them both into .got.  */
+-	  if (elf_cris_hash_table (info)->dtpmod_refcount > 0
++	  if (htab->dtpmod_refcount > 0
+ 	      && (input_section->flags & SEC_ALLOC) != 0)
+ 	    {
+ 	      asection *sgotplt = bfd_get_section_by_name (dynobj, ".got.plt");
+@@ -1679,8 +1680,7 @@ cris_elf_relocate_section (output_bfd, i
+ 
+ 	      /* Reverse the sign to mark that we've emitted the
+ 		 required GOT entry.  */
+-	      elf_cris_hash_table (info)->dtpmod_refcount
+-		= -elf_cris_hash_table (info)->dtpmod_refcount;
++	      htab->dtpmod_refcount = - htab->dtpmod_refcount;
+ 	    }
+ 
+ 	  /* The thread-based offset to the local symbol is the
+@@ -2111,12 +2111,12 @@ cris_elf_relocate_section (output_bfd, i
+    dynamic sections here.  */
+ 
+ static bfd_boolean
+-elf_cris_finish_dynamic_symbol (output_bfd, info, h, sym)
+-     bfd *output_bfd;
+-     struct bfd_link_info *info;
+-     struct elf_link_hash_entry *h;
+-     Elf_Internal_Sym *sym;
++elf_cris_finish_dynamic_symbol (bfd *output_bfd,
++				struct bfd_link_info *info,
++				struct elf_link_hash_entry *h,
++				Elf_Internal_Sym *sym)
+ {
++  struct elf_cris_link_hash_table * htab;
+   bfd *dynobj;
+ 
+   /* Where in the plt entry to put values.  */
+@@ -2133,6 +2133,10 @@ elf_cris_finish_dynamic_symbol (output_b
+   const bfd_byte *plt_entry = elf_cris_plt_entry;
+   const bfd_byte *plt_pic_entry = elf_cris_pic_plt_entry;
+ 
++  htab = elf_cris_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   /* Adjust the various PLT entry offsets.  */
+   if (bfd_get_mach (output_bfd) == bfd_mach_cris_v32)
+     {
+@@ -2172,7 +2176,7 @@ elf_cris_finish_dynamic_symbol (output_b
+ 	 processed as part of the runtime lazy .rela.plt relocation).
+ 	 FIXME: There be literal constants here...  */
+       bfd_vma rela_plt_index
+-	= (elf_cris_hash_table (info)->dtpmod_refcount != 0
++	= (htab->dtpmod_refcount != 0
+ 	   ? gotplt_offset/4 - 2 - 3 : gotplt_offset/4 - 3);
+ 
+       /* Get the offset into the .got table of the entry that corresponds
+@@ -2183,7 +2187,7 @@ elf_cris_finish_dynamic_symbol (output_b
+       bfd_vma got_offset
+ 	= (has_gotplt
+ 	   ? gotplt_offset
+-	   : h->got.offset + elf_cris_hash_table(info)->next_gotplt_entry);
++	   : h->got.offset + htab->next_gotplt_entry);
+ 
+       /* This symbol has an entry in the procedure linkage table.  Set it
+ 	 up.  */
+@@ -2535,6 +2539,7 @@ cris_elf_gc_sweep_hook (bfd *abfd,
+ 			asection *sec,
+ 			const Elf_Internal_Rela *relocs)
+ {
++  struct elf_cris_link_hash_table * htab;
+   Elf_Internal_Shdr *symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes;
+   bfd_signed_vma *local_got_refcounts;
+@@ -2550,6 +2555,10 @@ cris_elf_gc_sweep_hook (bfd *abfd,
+   if (dynobj == NULL)
+     return TRUE;
+ 
++  htab = elf_cris_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (abfd);
+   local_got_refcounts = elf_local_got_refcounts (abfd);
+@@ -2687,9 +2696,9 @@ cris_elf_gc_sweep_hook (bfd *abfd,
+ 	    break;
+ 	  /* Fall through.  */
+ 	case R_CRIS_16_DTPREL:
+-	  elf_cris_hash_table (info)->dtpmod_refcount--;
+-	  if (elf_cris_hash_table (info)->dtpmod_refcount == 0)
+-	    elf_cris_hash_table (info)->next_gotplt_entry -= 8;
++	  htab->dtpmod_refcount--;
++	  if (htab->dtpmod_refcount == 0)
++	    htab->next_gotplt_entry -= 8;
+ 	  BFD_ASSERT (local_got_refcounts != NULL);
+ 	  local_got_refcounts[-1]--;
+ 	  break;
+@@ -2839,14 +2848,18 @@ elf_cris_hide_symbol (info, h, force_loc
+    understand.  */
+ 
+ static bfd_boolean
+-elf_cris_adjust_dynamic_symbol (info, h)
+-     struct bfd_link_info *info;
+-     struct elf_link_hash_entry *h;
++elf_cris_adjust_dynamic_symbol (struct bfd_link_info *info,
++				struct elf_link_hash_entry *h)
+ {
++  struct elf_cris_link_hash_table * htab;
+   bfd *dynobj;
+   asection *s;
+   bfd_size_type plt_entry_size;
+ 
++  htab = elf_cris_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+ 
+   /* Make sure we know what is going on here.  */
+@@ -2971,8 +2984,8 @@ elf_cris_adjust_dynamic_symbol (info, h)
+       /* We also need to make an entry in the .got.plt section, which
+ 	 will be placed in the .got section by the linker script.  */
+       ((struct elf_cris_link_hash_entry *) h)->gotplt_offset
+-	= elf_cris_hash_table (info)->next_gotplt_entry;
+-      elf_cris_hash_table (info)->next_gotplt_entry += 4;
++	= htab->next_gotplt_entry;
++      htab->next_gotplt_entry += 4;
+ 
+       s = bfd_get_section_by_name (dynobj, ".got.plt");
+       BFD_ASSERT (s != NULL);
+@@ -3096,12 +3109,12 @@ elf_cris_copy_indirect_symbol (struct bf
+ /* Look through the relocs for a section during the first phase.  */
+ 
+ static bfd_boolean
+-cris_elf_check_relocs (abfd, info, sec, relocs)
+-     bfd *abfd;
+-     struct bfd_link_info *info;
+-     asection *sec;
+-     const Elf_Internal_Rela *relocs;
++cris_elf_check_relocs (bfd *abfd,
++		       struct bfd_link_info *info,
++		       asection *sec,
++		       const Elf_Internal_Rela *relocs)
+ {
++  struct elf_cris_link_hash_table * htab;
+   bfd *dynobj;
+   Elf_Internal_Shdr *symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes;
+@@ -3115,6 +3128,10 @@ cris_elf_check_relocs (abfd, info, sec,
+   if (info->relocatable)
+     return TRUE;
+ 
++  htab = elf_cris_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (abfd);
+@@ -3166,9 +3183,10 @@ cris_elf_check_relocs (abfd, info, sec,
+ 	case R_CRIS_16_DTPREL:
+ 	  /* The first .got.plt entry is right after the R_CRIS_DTPMOD
+ 	     entry at index 3. */
+-	  if (elf_cris_hash_table (info)->dtpmod_refcount == 0)
+-	    elf_cris_hash_table (info)->next_gotplt_entry += 8;
+-	  elf_cris_hash_table (info)->dtpmod_refcount++;
++	  if (htab->dtpmod_refcount == 0)
++	    htab->next_gotplt_entry += 8;
++
++	  htab->dtpmod_refcount++;
+ 	  /* Fall through.  */
+ 
+ 	case R_CRIS_32_IE:
+@@ -3701,15 +3719,19 @@ cris_elf_check_relocs (abfd, info, sec,
+ /* Set the sizes of the dynamic sections.  */
+ 
+ static bfd_boolean
+-elf_cris_size_dynamic_sections (output_bfd, info)
+-     bfd *output_bfd ATTRIBUTE_UNUSED;
+-     struct bfd_link_info *info;
++elf_cris_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
++				struct bfd_link_info *info)
+ {
++  struct elf_cris_link_hash_table * htab;
+   bfd *dynobj;
+   asection *s;
+   bfd_boolean plt;
+   bfd_boolean relocs;
+ 
++  htab = elf_cris_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -3727,9 +3749,8 @@ elf_cris_size_dynamic_sections (output_b
+   else
+     {
+       /* Adjust all expected GOTPLT uses to use a GOT entry instead.  */
+-      elf_cris_link_hash_traverse (elf_cris_hash_table (info),
+-				   elf_cris_adjust_gotplt_to_got,
+-				   (PTR) info);
++      elf_cris_link_hash_traverse (htab, elf_cris_adjust_gotplt_to_got,
++				   info);
+ 
+       /* We may have created entries in the .rela.got section.
+ 	 However, if we are not creating the dynamic sections, we will
+@@ -3749,13 +3770,13 @@ elf_cris_size_dynamic_sections (output_b
+      visibility changes.  For programs, we discard space for relocs for
+      symbols not referenced by any dynamic object.  */
+   if (info->shared)
+-    elf_cris_link_hash_traverse (elf_cris_hash_table (info),
++    elf_cris_link_hash_traverse (htab,
+ 				 elf_cris_discard_excess_dso_dynamics,
+-				 (PTR) info);
++				 info);
+   else
+-    elf_cris_link_hash_traverse (elf_cris_hash_table (info),
++    elf_cris_link_hash_traverse (htab,
+ 				 elf_cris_discard_excess_program_dynamics,
+-				 (PTR) info);
++				 info);
+ 
+   /* The check_relocs and adjust_dynamic_symbol entry points have
+      determined the sizes of the various dynamic sections.  Allocate
+@@ -3783,13 +3804,13 @@ elf_cris_size_dynamic_sections (output_b
+ 	  /* The .got.plt contains the .got header as well as the
+ 	     actual .got.plt contents.  The .got header may contain a
+ 	     R_CRIS_DTPMOD entry at index 3.  */
+-	  s->size += elf_cris_hash_table (info)->dtpmod_refcount != 0
++	  s->size += htab->dtpmod_refcount != 0
+ 	    ? 8 : 0;
+ 	}
+       else if (CONST_STRNEQ (name, ".rela"))
+ 	{
+ 	  if (strcmp (name, ".rela.got") == 0
+-	      && elf_cris_hash_table (info)->dtpmod_refcount != 0
++	      && htab->dtpmod_refcount != 0
+ 	      && info->shared)
+ 	    s->size += sizeof (Elf32_External_Rela);
+ 
+Only in b/bfd: elf32-cris.c.orig
+diff -rup a/bfd/elf32-frv.c b/bfd/elf32-frv.c
+--- a/bfd/elf32-frv.c	2011-12-16 00:09:25.662026244 -0700
++++ b/bfd/elf32-frv.c	2011-12-16 00:01:26.770804804 -0700
+@@ -1,5 +1,5 @@
+ /* FRV-specific support for 32-bit ELF.
+-   Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
++   Copyright 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+    Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -882,8 +882,9 @@ struct frvfdpic_elf_link_hash_table
+ 
+ /* Get the FRV ELF linker hash table from a link_info structure.  */
+ 
+-#define frvfdpic_hash_table(info) \
+-  ((struct frvfdpic_elf_link_hash_table *) ((info)->hash))
++#define frvfdpic_hash_table(p) \
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == FRV_ELF_DATA ? ((struct frvfdpic_elf_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define frvfdpic_got_section(info) \
+   (frvfdpic_hash_table (info)->sgot)
+@@ -1006,7 +1007,8 @@ frvfdpic_elf_link_hash_table_create (bfd
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd,
+ 				      _bfd_elf_link_hash_newfunc,
+-				      sizeof (struct elf_link_hash_entry)))
++				      sizeof (struct elf_link_hash_entry),
++				      FRV_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+diff -rup a/bfd/elf32-hppa.c b/bfd/elf32-hppa.c
+--- a/bfd/elf32-hppa.c	2011-12-16 00:09:25.664026244 -0700
++++ b/bfd/elf32-hppa.c	2011-12-16 00:01:26.772804804 -0700
+@@ -1,6 +1,6 @@
+ /* BFD back-end for HP PA-RISC ELF files.
+    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1999, 2000, 2001,
+-   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
++   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+    Free Software Foundation, Inc.
+ 
+    Original code by
+@@ -314,7 +314,8 @@ struct elf32_hppa_link_hash_table
+ 
+ /* Various hash macros and functions.  */
+ #define hppa_link_hash_table(p) \
+-  ((struct elf32_hppa_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == HPPA32_ELF_DATA ? ((struct elf32_hppa_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define hppa_elf_hash_entry(ent) \
+   ((struct elf32_hppa_link_hash_entry *)(ent))
+@@ -341,7 +342,7 @@ static bfd_boolean
+ elf32_hppa_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_obj_tdata),
+-				  HPPA_ELF_TDATA);
++				  HPPA32_ELF_DATA);
+ }
+ 
+ /* Assorted hash table functions.  */
+@@ -432,7 +433,8 @@ elf32_hppa_link_hash_table_create (bfd *
+     return NULL;
+ 
+   if (!_bfd_elf_link_hash_table_init (&htab->etab, abfd, hppa_link_hash_newfunc,
+-				      sizeof (struct elf32_hppa_link_hash_entry)))
++				      sizeof (struct elf32_hppa_link_hash_entry),
++				      HPPA32_ELF_DATA))
+     {
+       free (htab);
+       return NULL;
+@@ -728,6 +730,9 @@ hppa_build_one_stub (struct bfd_hash_ent
+   info = (struct bfd_link_info *)in_arg;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   stub_sec = hsh->stub_sec;
+ 
+   /* Make a note of the offset within the stubs for this entry.  */
+@@ -1000,6 +1005,8 @@ elf32_hppa_create_dynamic_sections (bfd
+ 
+   /* Don't try to create the .plt and .got twice.  */
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+   if (htab->splt != NULL)
+     return TRUE;
+ 
+@@ -1160,6 +1167,8 @@ elf32_hppa_check_relocs (bfd *abfd,
+     return TRUE;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   eh_syms = elf_sym_hashes (abfd);
+   sreloc = NULL;
+@@ -1369,7 +1378,7 @@ elf32_hppa_check_relocs (bfd *abfd,
+ 
+ 	  if (r_type == R_PARISC_TLS_LDM21L
+ 	      || r_type == R_PARISC_TLS_LDM14R)
+-	    hppa_link_hash_table (info)->tls_ldm_got.refcount += 1;
++	    htab->tls_ldm_got.refcount += 1;
+ 	  else
+ 	    {
+ 	      if (hh != NULL)
+@@ -1601,10 +1610,15 @@ elf32_hppa_gc_sweep_hook (bfd *abfd,
+   bfd_signed_vma *local_got_refcounts;
+   bfd_signed_vma *local_plt_refcounts;
+   const Elf_Internal_Rela *rela, *relend;
++  struct elf32_hppa_link_hash_table *htab;
+ 
+   if (info->relocatable)
+     return TRUE;
+ 
++  htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+@@ -1669,7 +1683,7 @@ elf32_hppa_gc_sweep_hook (bfd *abfd,
+ 
+ 	case R_PARISC_TLS_LDM21L:
+ 	case R_PARISC_TLS_LDM14R:
+-	  hppa_link_hash_table (info)->tls_ldm_got.refcount -= 1;
++	  htab->tls_ldm_got.refcount -= 1;
+ 	  break;
+ 
+ 	case R_PARISC_PCREL12F:
+@@ -1904,6 +1918,8 @@ elf32_hppa_adjust_dynamic_symbol (struct
+      same memory location for the variable.  */
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* We must generate a COPY reloc to tell the dynamic linker to
+      copy the initial value out of the dynamic object and into the
+@@ -1939,6 +1955,9 @@ allocate_plt_static (struct elf_link_has
+   info = (struct bfd_link_info *) inf;
+   hh = hppa_elf_hash_entry (eh);
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (htab->etab.dynamic_sections_created
+       && eh->plt.refcount > 0)
+     {
+@@ -2005,6 +2024,9 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = inf;
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   hh = hppa_elf_hash_entry (eh);
+   
+   if (htab->etab.dynamic_sections_created
+@@ -2212,6 +2234,9 @@ elf32_hppa_size_dynamic_sections (bfd *o
+   bfd_boolean relocs;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->etab.dynobj;
+   if (dynobj == NULL)
+     abort ();
+@@ -2505,6 +2530,9 @@ elf32_hppa_setup_section_lists (bfd *out
+   bfd_size_type amt;
+   struct elf32_hppa_link_hash_table *htab = hppa_link_hash_table (info);
+ 
++  if (htab == NULL)
++    return -1;
++
+   /* Count the number of input BFDs and find the top input section id.  */
+   for (input_bfd = info->input_bfds, bfd_count = 0, top_id = 0;
+        input_bfd != NULL;
+@@ -2572,6 +2600,9 @@ elf32_hppa_next_input_section (struct bf
+ {
+   struct elf32_hppa_link_hash_table *htab = hppa_link_hash_table (info);
+ 
++  if (htab == NULL)
++    return;
++
+   if (isec->output_section->index <= htab->top_index)
+     {
+       asection **list = htab->input_list + isec->output_section->index;
+@@ -2679,6 +2710,9 @@ get_local_syms (bfd *output_bfd, bfd *in
+   int stub_changed = 0;
+   struct elf32_hppa_link_hash_table *htab = hppa_link_hash_table (info);
+ 
++  if (htab == NULL)
++    return -1;
++
+   /* We want to read in symbol extension records only once.  To do this
+      we need to read in the local symbols in parallel and save them for
+      later use; so hold pointers to the local symbols in an array.  */
+@@ -2807,6 +2841,9 @@ elf32_hppa_size_stubs
+   bfd_boolean stub_changed;
+   struct elf32_hppa_link_hash_table *htab = hppa_link_hash_table (info);
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   /* Stash our params away.  */
+   htab->stub_bfd = stub_bfd;
+   htab->multi_subspace = multi_subspace;
+@@ -3092,6 +3129,9 @@ elf32_hppa_set_gp (bfd *abfd, struct bfd
+   struct elf32_hppa_link_hash_table *htab;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   h = bfd_link_hash_lookup (&htab->etab.root, "$global$", FALSE, FALSE, FALSE);
+ 
+   if (h != NULL
+@@ -3176,6 +3216,8 @@ elf32_hppa_build_stubs (struct bfd_link_
+   struct elf32_hppa_link_hash_table *htab;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   for (stub_sec = htab->stub_bfd->sections;
+        stub_sec != NULL;
+@@ -3249,6 +3291,8 @@ hppa_record_segment_addr (bfd *abfd, ase
+   struct elf32_hppa_link_hash_table *htab;
+ 
+   htab = (struct elf32_hppa_link_hash_table*) data;
++  if (htab == NULL)
++    return;
+ 
+   if ((section->flags & (SEC_ALLOC | SEC_LOAD)) == (SEC_ALLOC | SEC_LOAD))
+     {
+@@ -3626,6 +3670,9 @@ elf32_hppa_relocate_section (bfd *output
+   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+ 
+   rela = relocs;
+@@ -4287,6 +4334,8 @@ elf32_hppa_finish_dynamic_symbol (bfd *o
+   bfd_byte *loc;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (eh->plt.offset != (bfd_vma) -1)
+     {
+@@ -4456,6 +4505,9 @@ elf32_hppa_finish_dynamic_sections (bfd
+   asection *sdyn;
+ 
+   htab = hppa_link_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->etab.dynobj;
+ 
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+Only in b/bfd: elf32-hppa.c.orig
+diff -rup a/bfd/elf32-i386.c b/bfd/elf32-i386.c
+--- a/bfd/elf32-i386.c	2011-12-16 00:09:25.532026184 -0700
++++ b/bfd/elf32-i386.c	2011-12-16 00:04:58.040903260 -0700
+@@ -1,6 +1,6 @@
+ /* Intel 80386/80486-specific support for 32-bit ELF
+    Copyright 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
+-   2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -634,13 +634,13 @@ struct elf_i386_obj_tdata
+ #define is_i386_elf(bfd)				\
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour	\
+    && elf_tdata (bfd) != NULL				\
+-   && elf_object_id (bfd) == I386_ELF_TDATA)
++   && elf_object_id (bfd) == I386_ELF_DATA)
+ 
+ static bfd_boolean
+ elf_i386_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_i386_obj_tdata),
+-				  I386_ELF_TDATA);
++				  I386_ELF_DATA);
+ }
+ 
+ /* i386 ELF linker hash table.  */
+@@ -653,19 +653,8 @@ struct elf_i386_link_hash_table
+   asection *sdynbss;
+   asection *srelbss;
+ 
+-  /* The (unloaded but important) .rel.plt.unloaded section on VxWorks.  */
+-  asection *srelplt2;
+-
+-  /* True if the target system is VxWorks.  */
+-  int is_vxworks;
+-
+-  /* Value used to fill the last word of the first plt entry.  */
+-  bfd_byte plt0_pad_byte;
+-
+-  /* The index of the next unused R_386_TLS_DESC slot in .rel.plt.  */
+-  bfd_vma next_tls_desc_index;
+-
+-  union {
++  union
++  {
+     bfd_signed_vma refcount;
+     bfd_vma offset;
+   } tls_ldm_got;
+@@ -686,12 +675,26 @@ struct elf_i386_link_hash_table
+ 
+   asection *sdynsharablebss;
+   asection *srelsharablebss;
+-};
+ 
++  /* The (unloaded but important) .rel.plt.unloaded section on VxWorks.  */
++  asection *srelplt2;
++
++ /* True if the target system is VxWorks.  */
++  int is_vxworks;
++
++  /* The index of the next unused R_386_TLS_DESC slot in .rel.plt.  */
++  bfd_vma next_tls_desc_index;
++
++  /* Value used to fill the last word of the first plt entry.  */
++  bfd_byte plt0_pad_byte;
++
++};
+ /* Get the i386 ELF linker hash table from a link_info structure.  */
+ 
+ #define elf_i386_hash_table(p) \
+-  ((struct elf_i386_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id  ((struct elf_link_hash_table *) ((p)->hash)) \
++   == I386_ELF_DATA ? ((struct elf_i386_link_hash_table *) ((p)->hash)) : NULL)
++
+ 
+ #define elf_i386_compute_jump_table_size(htab) \
+   ((htab)->next_tls_desc_index * 4)
+@@ -811,7 +814,8 @@ elf_i386_link_hash_table_create (bfd *ab
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd,
+ 				      elf_i386_link_hash_newfunc,
+-				      sizeof (struct elf_i386_link_hash_entry)))
++				      sizeof (struct elf_i386_link_hash_entry),
++				      I386_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -872,6 +876,9 @@ elf_i386_create_dynamic_sections (bfd *d
+     return FALSE;
+ 
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->sdynbss = bfd_get_section_by_name (dynobj, ".dynbss");
+   if (!info->shared)
+     {
+@@ -1248,12 +1255,19 @@ elf_i386_tls_transition (struct bfd_link
+ 	name = h->root.root.string;
+       else
+ 	{
+-	  Elf_Internal_Sym *isym;
+ 	  struct elf_i386_link_hash_table *htab;
++
+ 	  htab = elf_i386_hash_table (info);
+-	  isym = bfd_sym_from_r_symndx (&htab->sym_cache,
+-					abfd, r_symndx);
+-	  name = bfd_elf_sym_name (abfd, symtab_hdr, isym, NULL);
++	  if (htab == NULL)
++	    name = "*unknown*";
++	  else
++	    {
++	      Elf_Internal_Sym *isym;
++
++	      isym = bfd_sym_from_r_symndx (&htab->sym_cache,
++					    abfd, r_symndx);
++	      name = bfd_elf_sym_name (abfd, symtab_hdr, isym, NULL);
++	    }
+ 	}
+ 
+       (*_bfd_error_handler)
+@@ -1292,6 +1306,9 @@ elf_i386_check_relocs (bfd *abfd,
+   BFD_ASSERT (is_i386_elf (abfd));
+ 
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_symtab_hdr (abfd);
+   sym_hashes = elf_sym_hashes (abfd);
+ 
+@@ -1772,6 +1789,7 @@ elf_i386_gc_sweep_hook (bfd *abfd,
+ 			asection *sec,
+ 			const Elf_Internal_Rela *relocs)
+ {
++  struct elf_i386_link_hash_table *htab;
+   Elf_Internal_Shdr *symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes;
+   bfd_signed_vma *local_got_refcounts;
+@@ -1780,6 +1798,10 @@ elf_i386_gc_sweep_hook (bfd *abfd,
+   if (info->relocatable)
+     return TRUE;
+ 
++  htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+   symtab_hdr = &elf_symtab_hdr (abfd);
+@@ -1825,8 +1847,8 @@ elf_i386_gc_sweep_hook (bfd *abfd,
+       switch (r_type)
+ 	{
+ 	case R_386_TLS_LDM:
+-	  if (elf_i386_hash_table (info)->tls_ldm_got.refcount > 0)
+-	    elf_i386_hash_table (info)->tls_ldm_got.refcount -= 1;
++	  if (htab->tls_ldm_got.refcount > 0)
++	    htab->tls_ldm_got.refcount -= 1;
+ 	  break;
+ 
+ 	case R_386_TLS_GD:
+@@ -1961,6 +1983,8 @@ elf_i386_adjust_dynamic_symbol (struct b
+     }
+ 
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* If there aren't any dynamic relocs in read-only sections, then
+      we can keep the dynamic relocs and avoid the copy reloc.  This
+@@ -2046,6 +2070,8 @@ elf_i386_allocate_dynrelocs (struct elf_
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Since STT_GNU_IFUNC symbol must go through PLT, we handle it
+      here if it is defined and referenced in a non-shared object.  */
+@@ -2369,6 +2395,8 @@ elf_i386_size_dynamic_sections (bfd *out
+   bfd *ibfd;
+ 
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+   dynobj = htab->elf.dynobj;
+   if (dynobj == NULL)
+     abort ();
+@@ -2656,17 +2684,22 @@ elf_i386_always_size_sections (bfd *outp
+ 
+       if (tlsbase && tlsbase->type == STT_TLS)
+ 	{
++	  struct elf_i386_link_hash_table *htab;
+ 	  struct bfd_link_hash_entry *bh = NULL;
+ 	  const struct elf_backend_data *bed
+ 	    = get_elf_backend_data (output_bfd);
+ 
++	  htab = elf_i386_hash_table (info);
++	  if (htab == NULL)
++	    return FALSE;
++
+ 	  if (!(_bfd_generic_link_add_one_symbol
+ 		(info, output_bfd, "_TLS_MODULE_BASE_", BSF_LOCAL,
+ 		 tls_sec, 0, NULL, FALSE,
+ 		 bed->collect, &bh)))
+ 	    return FALSE;
+ 
+-	  elf_i386_hash_table (info)->tls_module_base = bh;
++	  htab->tls_module_base = bh;
+ 
+ 	  tlsbase = (struct elf_link_hash_entry *)bh;
+ 	  tlsbase->def_regular = 1;
+@@ -2720,17 +2753,21 @@ elf_i386_fake_sections (bfd *abfd ATTRIB
+ static void
+ elf_i386_set_tls_module_base (struct bfd_link_info *info)
+ {
++  struct elf_i386_link_hash_table *htab;
+   struct bfd_link_hash_entry *base;
+ 
+   if (!info->executable)
+     return;
+ 
+-  base = elf_i386_hash_table (info)->tls_module_base;
++  htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return;
+ 
+-  if (!base)
++  base = htab->tls_module_base;
++  if (base == NULL)
+     return;
+ 
+-  base->u.def.value = elf_hash_table (info)->tls_size;
++  base->u.def.value = htab->elf.tls_size;
+ }
+ 
+ /* Return the base VMA address which should be subtracted from real addresses
+@@ -2784,6 +2821,8 @@ elf_i386_relocate_section (bfd *output_b
+   BFD_ASSERT (is_i386_elf (input_bfd));
+   
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+   symtab_hdr = &elf_symtab_hdr (input_bfd);
+   sym_hashes = elf_sym_hashes (input_bfd);
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+@@ -4062,6 +4101,8 @@ elf_i386_finish_dynamic_symbol (bfd *out
+   struct elf_i386_link_hash_table *htab;
+ 
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+     {
+@@ -4385,6 +4426,9 @@ elf_i386_finish_dynamic_sections (bfd *o
+   asection *sdyn;
+ 
+   htab = elf_i386_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+ 
+Only in b/bfd: elf32-i386.c.orig
+Only in b/bfd: elf32-i386.c.rej
+diff -rup a/bfd/elf32-lm32.c b/bfd/elf32-lm32.c
+--- a/bfd/elf32-lm32.c	2011-12-16 00:09:25.667026245 -0700
++++ b/bfd/elf32-lm32.c	2011-12-16 00:01:26.776804807 -0700
+@@ -1,5 +1,5 @@
+ /* Lattice Mico32-specific support for 32-bit ELF
+-   Copyright 2008, 2009  Free Software Foundation, Inc.
++   Copyright 2008, 2009, 2010  Free Software Foundation, Inc.
+    Contributed by Jon Beniston <jon@beniston.com>
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -102,7 +102,8 @@ struct elf_lm32_link_hash_table
+ /* Get the lm32 ELF linker hash table from a link_info structure.  */
+ 
+ #define lm32_elf_hash_table(p) \
+-  ((struct elf_lm32_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == LM32_ELF_DATA ? ((struct elf_lm32_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define lm32fdpic_got_section(info) \
+   (lm32_elf_hash_table (info)->sgot)
+@@ -164,7 +165,8 @@ lm32_elf_link_hash_table_create (bfd *ab
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      lm32_elf_link_hash_newfunc,
+-				      sizeof (struct elf_lm32_link_hash_entry)))
++				      sizeof (struct elf_lm32_link_hash_entry),
++				      LM32_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -219,10 +221,13 @@ create_got_section (bfd *dynobj, struct
+   if (s != NULL && (s->flags & SEC_LINKER_CREATED) != 0)
+     return TRUE;
+ 
++  htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (! _bfd_elf_create_got_section (dynobj, info))
+     return FALSE;
+ 
+-  htab = lm32_elf_hash_table (info);
+   htab->sgot = bfd_get_section_by_name (dynobj, ".got");
+   htab->sgotplt = bfd_get_section_by_name (dynobj, ".got.plt");
+   htab->srelgot = bfd_get_section_by_name (dynobj, ".rela.got");
+@@ -241,7 +246,10 @@ create_rofixup_section (bfd *dynobj, str
+   struct elf_lm32_link_hash_table *htab;
+   htab = lm32_elf_hash_table (info);
+ 
+-  /* Fixup section for R_LM32_32 relocs */
++  if (htab == NULL)
++    return FALSE;
++
++  /* Fixup section for R_LM32_32 relocs.  */
+   lm32fdpic_fixup32_section (info) = bfd_make_section_with_flags (dynobj,
+                                                                    ".rofixup",
+ 				                                   (SEC_ALLOC
+@@ -818,12 +826,14 @@ lm32_elf_relocate_section (bfd *output_b
+   Elf_Internal_Shdr *symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes = elf_sym_hashes (input_bfd);
+   Elf_Internal_Rela *rel, *relend;
+-
+   struct elf_lm32_link_hash_table *htab = lm32_elf_hash_table (info);
+   bfd *dynobj;
+   bfd_vma *local_got_offsets;
+   asection *sgot, *splt, *sreloc;
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+ 
+@@ -1291,6 +1301,9 @@ lm32_elf_check_relocs (bfd *abfd,
+     sym_hashes_end -= symtab_hdr->sh_info;
+ 
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   local_got_offsets = elf_local_got_offsets (abfd);
+ 
+@@ -1419,6 +1432,9 @@ lm32_elf_finish_dynamic_sections (bfd *o
+   asection *sgot;
+ 
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+ 
+   sgot = htab->sgotplt;
+@@ -1598,6 +1614,9 @@ lm32_elf_finish_dynamic_symbol (bfd *out
+   bfd_byte *loc;
+ 
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+@@ -1879,6 +1898,9 @@ lm32_elf_adjust_dynamic_symbol (struct b
+      same memory location for the variable.  */
+ 
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   s = htab->sdynbss;
+   BFD_ASSERT (s != NULL);
+ 
+@@ -1921,6 +1943,8 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   eh = (struct elf_lm32_link_hash_entry *) h;
+ 
+@@ -2137,6 +2161,9 @@ lm32_elf_size_dynamic_sections (bfd *out
+   bfd *ibfd;
+ 
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -2464,6 +2491,8 @@ lm32_elf_create_dynamic_sections (bfd *a
+   int ptralign = 2; /* 32bit */
+ 
+   htab = lm32_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Make sure we have a GOT - For the case where we have a dynamic object
+      but none of the relocs in check_relocs */
+Only in b/bfd: elf32-lm32.c.orig
+diff -rup a/bfd/elf32-m32r.c b/bfd/elf32-m32r.c
+--- a/bfd/elf32-m32r.c	2011-12-16 00:09:25.669026246 -0700
++++ b/bfd/elf32-m32r.c	2011-12-16 00:01:26.777804807 -0700
+@@ -1,6 +1,6 @@
+ /* M32R-specific support for 32-bit ELF.
+    Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+-   2006, 2007, 2008, 2009  Free Software Foundation, Inc.
++   2006, 2007, 2008, 2009, 2010  Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -1540,9 +1540,9 @@ struct elf_m32r_link_hash_table
+ 
+ /* Get the m32r ELF linker hash table from a link_info structure.  */
+ 
+-
+ #define m32r_elf_hash_table(p) \
+-  ((struct elf_m32r_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == M32R_ELF_DATA ? ((struct elf_m32r_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in an m32r ELF linker hash table.  */
+ 
+@@ -1591,7 +1591,8 @@ m32r_elf_link_hash_table_create (bfd *ab
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      m32r_elf_link_hash_newfunc,
+-				      sizeof (struct elf_m32r_link_hash_entry)))
++				      sizeof (struct elf_m32r_link_hash_entry),
++				      M32R_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -1621,6 +1622,9 @@ create_got_section (bfd *dynobj, struct
+     return FALSE;
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->sgot = bfd_get_section_by_name (dynobj, ".got");
+   htab->sgotplt = bfd_get_section_by_name (dynobj, ".got.plt");
+   htab->srelgot = bfd_get_section_by_name (dynobj, ".rela.got");
+@@ -1642,6 +1646,8 @@ m32r_elf_create_dynamic_sections (bfd *a
+   int ptralign = 2; /* 32bit */
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* We need to create .plt, .rel[a].plt, .got, .got.plt, .dynbss, and
+      .rel[a].bss sections.  */
+@@ -1934,6 +1940,9 @@ m32r_elf_adjust_dynamic_symbol (struct b
+      same memory location for the variable.  */
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   s = htab->sdynbss;
+   BFD_ASSERT (s != NULL);
+ 
+@@ -1976,6 +1985,8 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   eh = (struct elf_m32r_link_hash_entry *) h;
+ 
+@@ -2196,6 +2207,9 @@ m32r_elf_size_dynamic_sections (bfd *out
+ #endif
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -2434,13 +2448,15 @@ m32r_elf_relocate_section (bfd *output_b
+   Elf_Internal_Rela *rel, *relend;
+   /* Assume success.  */
+   bfd_boolean ret = TRUE;
+-
+   struct elf_m32r_link_hash_table *htab = m32r_elf_hash_table (info);
+   bfd *dynobj;
+   bfd_vma *local_got_offsets;
+   asection *sgot, *splt, *sreloc;
+   bfd_vma high_address = bfd_get_section_limit (input_bfd, input_section);
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+ 
+@@ -3138,6 +3154,9 @@ m32r_elf_finish_dynamic_symbol (bfd *out
+ #endif
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+@@ -3340,6 +3359,9 @@ m32r_elf_finish_dynamic_sections (bfd *o
+ #endif
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+ 
+   sgot = htab->sgotplt;
+@@ -3757,6 +3779,9 @@ m32r_elf_check_relocs (bfd *abfd,
+   sym_hashes = elf_sym_hashes (abfd);
+ 
+   htab = m32r_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   local_got_offsets = elf_local_got_offsets (abfd);
+ 
+Only in b/bfd: elf32-m32r.c.orig
+diff -rup a/bfd/elf32-m68hc11.c b/bfd/elf32-m68hc11.c
+--- a/bfd/elf32-m68hc11.c	2007-08-01 07:11:48.000000000 -0600
++++ b/bfd/elf32-m68hc11.c	2011-12-16 00:01:26.778804807 -0700
+@@ -1,5 +1,5 @@
+ /* Motorola 68HC11-specific support for 32-bit ELF
+-   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
++   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2010
+    Free Software Foundation, Inc.
+    Contributed by Stephane Carrez (stcarrez@nerim.fr)
+    (Heavily copied from the D10V port by Martin Hunt (hunt@cygnus.com))
+@@ -409,6 +409,8 @@ m68hc11_elf_build_one_stub (struct bfd_h
+   info = (struct bfd_link_info *) in_arg;
+ 
+   htab = m68hc11_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   stub_sec = stub_entry->stub_sec;
+ 
+diff -rup a/bfd/elf32-m68hc1x.c b/bfd/elf32-m68hc1x.c
+--- a/bfd/elf32-m68hc1x.c	2011-12-16 00:09:25.670026246 -0700
++++ b/bfd/elf32-m68hc1x.c	2011-12-16 00:01:26.780804807 -0700
+@@ -1,6 +1,6 @@
+ /* Motorola 68HC11/HC12-specific support for 32-bit ELF
+    Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+-   2009 Free Software Foundation, Inc.
++   2009, 2010  Free Software Foundation, Inc.
+    Contributed by Stephane Carrez (stcarrez@nerim.fr)
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -74,7 +74,8 @@ m68hc11_elf_hash_table_create (bfd *abfd
+   memset (ret, 0, amt);
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      _bfd_elf_link_hash_newfunc,
+-				      sizeof (struct elf_link_hash_entry)))
++				      sizeof (struct elf_link_hash_entry),
++				      M68HC11_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -232,6 +233,8 @@ elf32_m68hc11_setup_section_lists (bfd *
+   struct m68hc11_elf_link_hash_table *htab;
+ 
+   htab = m68hc11_elf_hash_table (info);
++  if (htab == NULL)
++    return -1;
+ 
+   if (bfd_get_flavour (info->output_bfd) != bfd_target_elf_flavour)
+     return 0;
+@@ -320,9 +323,11 @@ elf32_m68hc11_size_stubs (bfd *output_bf
+   unsigned int bfd_indx, bfd_count;
+   bfd_size_type amt;
+   asection *stub_sec;
+-
+   struct m68hc11_elf_link_hash_table *htab = m68hc11_elf_hash_table (info);
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   /* Stash our params away.  */
+   htab->stub_bfd = stub_bfd;
+   htab->add_stub_section = add_stub_section;
+@@ -331,9 +336,7 @@ elf32_m68hc11_size_stubs (bfd *output_bf
+   for (input_bfd = info->input_bfds, bfd_count = 0;
+        input_bfd != NULL;
+        input_bfd = input_bfd->link_next)
+-    {
+-      bfd_count += 1;
+-    }
++    bfd_count += 1;
+ 
+   /* We want to read in symbol extension records only once.  To do this
+      we need to read in the local symbols in parallel and save them for
+@@ -568,6 +571,8 @@ m68hc11_elf_export_one_stub (struct bfd_
+ 
+   info = (struct bfd_link_info *) in_arg;
+   htab = m68hc11_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Massage our args to the form they really have.  */
+   stub_entry = (struct elf32_m68hc11_stub_hash_entry *) gen_entry;
+@@ -629,6 +634,8 @@ elf32_m68hc11_build_stubs (bfd *abfd, st
+ 
+   m68hc11_elf_get_bank_parameters (info);
+   htab = m68hc11_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   for (stub_sec = htab->stub_bfd->sections;
+        stub_sec != NULL;
+@@ -678,8 +685,13 @@ m68hc11_elf_get_bank_parameters (struct
+   unsigned i;
+   struct m68hc11_page_info *pinfo;
+   struct bfd_link_hash_entry *h;
++  struct m68hc11_elf_link_hash_table *htab;
++
++  htab = m68hc11_elf_hash_table (info);
++  if (htab == NULL)
++    return;
+ 
+-  pinfo = &m68hc11_elf_hash_table (info)->pinfo;
++  pinfo = & htab->pinfo;
+   if (pinfo->bank_param_initialized)
+     return;
+ 
+@@ -892,16 +904,22 @@ elf32_m68hc11_relocate_section (bfd *out
+   const char *name = NULL;
+   struct m68hc11_page_info *pinfo;
+   const struct elf_backend_data * const ebd = get_elf_backend_data (input_bfd);
++  struct m68hc11_elf_link_hash_table *htab;
+ 
+   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (input_bfd);
+ 
++  htab = m68hc11_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   /* Get memory bank parameters.  */
+   m68hc11_elf_get_bank_parameters (info);
+-  pinfo = &m68hc11_elf_hash_table (info)->pinfo;
+ 
++  pinfo = & htab->pinfo;
+   rel = relocs;
+   relend = relocs + input_section->reloc_count;
++
+   for (; rel < relend; rel++)
+     {
+       int r_type;
+@@ -987,9 +1005,7 @@ elf32_m68hc11_relocate_section (bfd *out
+       if (is_far && ELF32_R_TYPE (rel->r_info) == R_M68HC11_16)
+ 	{
+ 	  struct elf32_m68hc11_stub_hash_entry* stub;
+-	  struct m68hc11_elf_link_hash_table *htab;
+ 
+-	  htab = m68hc11_elf_hash_table (info);
+ 	  stub = m68hc12_stub_hash_lookup (htab->stub_hash_table,
+ 					   name, FALSE, FALSE);
+ 	  if (stub)
+@@ -1314,15 +1330,22 @@ void
+ elf32_m68hc11_post_process_headers (bfd *abfd, struct bfd_link_info *link_info)
+ {
+   struct m68hc11_scan_param param;
++  struct m68hc11_elf_link_hash_table *htab;
++
++  if (link_info == NULL)
++    return;
+ 
+-  if (link_info == 0)
++  htab = m68hc11_elf_hash_table (link_info);
++  if (htab == NULL)
+     return;
+ 
+   m68hc11_elf_get_bank_parameters (link_info);
+ 
+   param.use_memory_banks = FALSE;
+-  param.pinfo = &m68hc11_elf_hash_table (link_info)->pinfo;
++  param.pinfo = & htab->pinfo;
++
+   bfd_map_over_sections (abfd, scan_sections_for_abi, &param);
++
+   if (param.use_memory_banks)
+     {
+       Elf_Internal_Ehdr * i_ehdrp;
+@@ -1331,4 +1354,3 @@ elf32_m68hc11_post_process_headers (bfd
+       i_ehdrp->e_flags |= E_M68HC12_BANKS;
+     }
+ }
+-
+Only in b/bfd: elf32-m68hc1x.c.orig
+diff -rup a/bfd/elf32-m68hc1x.h b/bfd/elf32-m68hc1x.h
+--- a/bfd/elf32-m68hc1x.h	2009-09-08 11:11:49.000000000 -0600
++++ b/bfd/elf32-m68hc1x.h	2011-12-16 00:01:26.780804807 -0700
+@@ -1,5 +1,6 @@
+ /* Motorola 68HC11/68HC12-specific support for 32-bit ELF
+-   Copyright 2003, 2004, 2005, 2006, 2007, 2009 Free Software Foundation, Inc.
++   Copyright 2003, 2004, 2005, 2006, 2007, 2009, 2010
++   Free Software Foundation, Inc.
+    Contributed by Stephane Carrez (stcarrez@nerim.fr)
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -42,8 +43,8 @@ extern bfd_boolean _bfd_m68hc11_elf_prin
+    The trampoline is used when a pointer to a far function is used.
+    It takes care of installing the proper memory bank as well as creating
+    the 'call/rtc' calling convention.  */
+-struct elf32_m68hc11_stub_hash_entry {
+-
++struct elf32_m68hc11_stub_hash_entry
++{
+   /* Base hash table entry structure.  */
+   struct bfd_hash_entry root;
+ 
+@@ -83,9 +84,8 @@ struct elf32_m68hc11_stub_hash_entry {
+                         less or equal to the page size)
+ 
+    For 68HC12, the window is at 0x8000 and the page size is 16K (full window).
+-   For 68HC11 this is board specific (implemented by external hardware).
++   For 68HC11 this is board specific (implemented by external hardware).  */
+ 
+-*/
+ struct m68hc11_page_info
+ {
+   bfd_vma bank_virtual;
+@@ -113,7 +113,7 @@ struct m68hc11_elf_link_hash_table
+   asection* tramp_section;
+ 
+   /* Linker call-backs.  */
+-  asection * (*add_stub_section) PARAMS ((const char *, asection *));
++  asection * (*add_stub_section) (const char *, asection *);
+ 
+   /* Assorted information used by elf32_hppa_size_stubs.  */
+   unsigned int bfd_count;
+@@ -123,14 +123,15 @@ struct m68hc11_elf_link_hash_table
+   /* Small local sym cache.  */
+   struct sym_cache sym_cache;
+ 
+-  bfd_boolean (* size_one_stub) PARAMS((struct bfd_hash_entry*, void*));
+-  bfd_boolean (* build_one_stub) PARAMS((struct bfd_hash_entry*, void*));
++  bfd_boolean (* size_one_stub)  (struct bfd_hash_entry*, void*);
++  bfd_boolean (* build_one_stub) (struct bfd_hash_entry*, void*);
+ };
+ 
+ /* Get the Sparc64 ELF linker hash table from a link_info structure.  */
+ 
+ #define m68hc11_elf_hash_table(p) \
+-  ((struct m68hc11_elf_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == M68HC11_ELF_DATA ? ((struct m68hc11_elf_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create a 68HC11/68HC12 ELF linker hash table.  */
+ 
+diff -rup a/bfd/elf32-m68k.c b/bfd/elf32-m68k.c
+--- a/bfd/elf32-m68k.c	2011-12-16 00:09:25.671026247 -0700
++++ b/bfd/elf32-m68k.c	2011-12-16 00:01:26.782804809 -0700
+@@ -1,6 +1,6 @@
+ /* Motorola 68k series support for 32-bit ELF
+    Copyright 1993, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
+-   2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   2004, 2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -937,7 +937,8 @@ struct elf_m68k_link_hash_table
+ /* Get the m68k ELF linker hash table from a link_info structure.  */
+ 
+ #define elf_m68k_hash_table(p) \
+-  ((struct elf_m68k_link_hash_table *) (p)->hash)
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == M68K_ELF_DATA ? ((struct elf_m68k_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Shortcut to multi-GOT data.  */
+ #define elf_m68k_multi_got(INFO) (&elf_m68k_hash_table (INFO)->multi_got_)
+@@ -945,10 +946,9 @@ struct elf_m68k_link_hash_table
+ /* Create an entry in an m68k ELF linker hash table.  */
+ 
+ static struct bfd_hash_entry *
+-elf_m68k_link_hash_newfunc (entry, table, string)
+-     struct bfd_hash_entry *entry;
+-     struct bfd_hash_table *table;
+-     const char *string;
++elf_m68k_link_hash_newfunc (struct bfd_hash_entry *entry,
++			    struct bfd_hash_table *table,
++			    const char *string)
+ {
+   struct bfd_hash_entry *ret = entry;
+ 
+@@ -975,8 +975,7 @@ elf_m68k_link_hash_newfunc (entry, table
+ /* Create an m68k ELF linker hash table.  */
+ 
+ static struct bfd_link_hash_table *
+-elf_m68k_link_hash_table_create (abfd)
+-     bfd *abfd;
++elf_m68k_link_hash_table_create (bfd *abfd)
+ {
+   struct elf_m68k_link_hash_table *ret;
+   bfd_size_type amt = sizeof (struct elf_m68k_link_hash_table);
+@@ -987,7 +986,8 @@ elf_m68k_link_hash_table_create (abfd)
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      elf_m68k_link_hash_newfunc,
+-				      sizeof (struct elf_m68k_link_hash_entry)))
++				      sizeof (struct elf_m68k_link_hash_entry),
++				      M68K_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+diff -rup a/bfd/elf32-microblaze.c b/bfd/elf32-microblaze.c
+--- a/bfd/elf32-microblaze.c	2009-10-09 16:26:22.000000000 -0600
++++ b/bfd/elf32-microblaze.c	2011-12-16 00:01:26.783804810 -0700
+@@ -576,7 +576,8 @@ struct elf32_mb_link_hash_table
+ /* Get the ELF linker hash table from a link_info structure.  */
+ 
+ #define elf32_mb_hash_table(p)				\
+-  ((struct elf32_mb_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == MICROBLAZE_ELF_DATA ? ((struct elf32_mb_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in a microblaze ELF linker hash table.  */
+ 
+@@ -621,7 +622,8 @@ microblaze_elf_link_hash_table_create (b
+     return NULL;
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd, link_hash_newfunc,
+-				      sizeof (struct elf32_mb_link_hash_entry)))
++				      sizeof (struct elf32_mb_link_hash_entry),
++				      MICROBLAZE_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -709,6 +711,9 @@ microblaze_elf_relocate_section (bfd *ou
+     microblaze_elf_howto_init ();
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+ 
+   sreloc = elf_section_data (input_section)->sreloc;
+@@ -1889,6 +1894,9 @@ create_got_section (bfd *dynobj, struct
+   if (! _bfd_elf_create_got_section (dynobj, info))
+     return FALSE;
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->sgot = bfd_get_section_by_name (dynobj, ".got");
+   htab->sgotplt = bfd_get_section_by_name (dynobj, ".got.plt");
+   if (!htab->sgot || !htab->sgotplt)
+@@ -1928,6 +1936,9 @@ microblaze_elf_check_relocs (bfd * abfd,
+     return TRUE;
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   local_got_offsets = elf_local_got_offsets (abfd);
+   symtab_hdr = & elf_tdata (abfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (abfd);
+@@ -2170,6 +2181,9 @@ microblaze_elf_create_dynamic_sections (
+   struct elf32_mb_link_hash_table *htab;
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (!htab->sgot && !create_got_section (dynobj, info))
+     return FALSE;
+ 
+@@ -2250,6 +2264,8 @@ microblaze_elf_adjust_dynamic_symbol (st
+   bfd *dynobj;
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* If this is a function, put it in the procedure linkage table.  We
+      will fill in the contents of the procedure linkage table later,
+@@ -2398,6 +2414,8 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) dat;
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (htab->elf.dynamic_sections_created
+       && h->plt.refcount > 0)
+@@ -2560,6 +2578,9 @@ microblaze_elf_size_dynamic_sections (bf
+   bfd *ibfd;
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -2752,6 +2773,9 @@ microblaze_elf_finish_dynamic_symbol (bf
+   struct elf32_mb_link_hash_table *htab;
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+@@ -2910,6 +2934,9 @@ microblaze_elf_finish_dynamic_sections (
+   struct elf32_mb_link_hash_table *htab;
+ 
+   htab = elf32_mb_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+ 
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+Only in b/bfd: elf32-microblaze.c.orig
+diff -rup a/bfd/elf32-ppc.c b/bfd/elf32-ppc.c
+--- a/bfd/elf32-ppc.c	2011-12-16 00:09:25.981026389 -0700
++++ b/bfd/elf32-ppc.c	2011-12-16 00:01:26.785804810 -0700
+@@ -1796,7 +1796,7 @@ struct ppc_elf_obj_tdata
+ 
+ #define is_ppc_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+-   && elf_object_id (bfd) == PPC32_ELF_TDATA)
++   && elf_object_id (bfd) == PPC32_ELF_DATA)
+ 
+ /* Override the generic function because we store some extras.  */
+ 
+@@ -1804,7 +1804,7 @@ static bfd_boolean
+ ppc_elf_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct ppc_elf_obj_tdata),
+-				  PPC32_ELF_TDATA);
++				  PPC32_ELF_DATA);
+ }
+ 
+ /* Fix bad default arch selected for a 32 bit input bfd when the
+@@ -2791,7 +2791,8 @@ struct ppc_elf_link_hash_table
+ /* Get the PPC ELF linker hash table from a link_info structure.  */
+ 
+ #define ppc_elf_hash_table(p) \
+-  ((struct ppc_elf_link_hash_table *) (p)->hash)
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == PPC32_ELF_DATA ? ((struct ppc_elf_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in a PPC ELF linker hash table.  */
+ 
+@@ -2835,7 +2836,8 @@ ppc_elf_link_hash_table_create (bfd *abf
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd,
+ 				      ppc_elf_link_hash_newfunc,
+-				      sizeof (struct ppc_elf_link_hash_entry)))
++				      sizeof (struct ppc_elf_link_hash_entry),
++				      PPC32_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+Only in b/bfd: elf32-ppc.c.orig
+diff -rup a/bfd/elf32-s390.c b/bfd/elf32-s390.c
+--- a/bfd/elf32-s390.c	2011-12-16 00:09:25.678026249 -0700
++++ b/bfd/elf32-s390.c	2011-12-16 00:01:26.786804810 -0700
+@@ -693,13 +693,13 @@ struct elf_s390_obj_tdata
+ #define is_s390_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+    && elf_tdata (bfd) != NULL \
+-   && elf_object_id (bfd) == S390_ELF_TDATA)
++   && elf_object_id (bfd) == S390_ELF_DATA)
+ 
+ static bfd_boolean
+ elf_s390_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_s390_obj_tdata),
+-				  S390_ELF_TDATA);
++				  S390_ELF_DATA);
+ }
+ 
+ static bfd_boolean
+@@ -737,7 +737,8 @@ struct elf_s390_link_hash_table
+ /* Get the s390 ELF linker hash table from a link_info structure.  */
+ 
+ #define elf_s390_hash_table(p) \
+-  ((struct elf_s390_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == S390_ELF_DATA ? ((struct elf_s390_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in an s390 ELF linker hash table.  */
+ 
+@@ -786,7 +787,8 @@ elf_s390_link_hash_table_create (abfd)
+     return NULL;
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd, link_hash_newfunc,
+-				      sizeof (struct elf_s390_link_hash_entry)))
++				      sizeof (struct elf_s390_link_hash_entry),
++				      S390_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+diff -rup a/bfd/elf32-score.c b/bfd/elf32-score.c
+--- a/bfd/elf32-score.c	2011-12-16 00:09:25.680026251 -0700
++++ b/bfd/elf32-score.c	2011-12-16 00:01:26.788804812 -0700
+@@ -1,5 +1,5 @@
+ /* 32-bit ELF support for S+core.
+-   Copyright 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   Copyright 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+    Contributed by
+    Brain.lin (brain.lin@sunplusct.com)
+    Mei Ligang (ligang@sunnorth.com.cn)
+@@ -37,13 +37,6 @@
+ int score3 = 0;
+ int score7 = 1;
+ 
+-/* Score ELF linker hash table.  */
+-struct score_elf_link_hash_table
+-{
+-  /* The main hash table.  */
+-  struct elf_link_hash_table root;
+-};
+-
+ /* The SCORE ELF linker needs additional information for each symbol in
+    the global hash table.  */
+ struct score_elf_link_hash_entry
+@@ -68,14 +61,10 @@ struct score_elf_link_hash_entry
+ /* Traverse a score ELF linker hash table.  */
+ #define score_elf_link_hash_traverse(table, func, info) \
+   (elf_link_hash_traverse \
+-   (&(table)->root, \
++   ((table),							     \
+     (bfd_boolean (*) (struct elf_link_hash_entry *, void *)) (func), \
+     (info)))
+ 
+-/* Get the SCORE elf linker hash table from a link_info structure.  */
+-#define score_elf_hash_table(info) \
+-  ((struct score_elf_link_hash_table *) ((info)->hash))
+-
+ /* This structure is used to hold .got entries while estimating got sizes.  */
+ struct score_got_entry
+ {
+@@ -1135,10 +1124,9 @@ score_elf_sort_hash_table (struct bfd_li
+        too large offsets.  */
+     - (g->next ? g->assigned_gotno : 0);
+   hsd.max_non_got_dynindx = max_local;
+-  score_elf_link_hash_traverse (((struct score_elf_link_hash_table *)
+-                                 elf_hash_table (info)),
+-                                 score_elf_sort_hash_table_f,
+-                                 &hsd);
++  score_elf_link_hash_traverse (elf_hash_table (info),
++				score_elf_sort_hash_table_f,
++				&hsd);
+ 
+   /* There should have been enough room in the symbol table to
+      accommodate both the GOT and non-GOT symbols.  */
+@@ -1154,22 +1142,23 @@ score_elf_sort_hash_table (struct bfd_li
+ }
+ 
+ /* Create an entry in an score ELF linker hash table.  */
++
+ static struct bfd_hash_entry *
+ score_elf_link_hash_newfunc (struct bfd_hash_entry *entry,
+                              struct bfd_hash_table *table,
+                              const char *string)
+ {
+-  struct score_elf_link_hash_entry *ret = (struct score_elf_link_hash_entry *)entry;
++  struct score_elf_link_hash_entry *ret = (struct score_elf_link_hash_entry *) entry;
+ 
+   /* Allocate the structure if it has not already been allocated by a subclass.  */
+   if (ret == NULL)
+     ret = bfd_hash_allocate (table, sizeof (struct score_elf_link_hash_entry));
+   if (ret == NULL)
+-    return (struct bfd_hash_entry *)ret;
++    return (struct bfd_hash_entry *) ret;
+ 
+   /* Call the allocation method of the superclass.  */
+   ret = ((struct score_elf_link_hash_entry *)
+-         _bfd_elf_link_hash_newfunc ((struct bfd_hash_entry *)ret, table, string));
++         _bfd_elf_link_hash_newfunc ((struct bfd_hash_entry *) ret, table, string));
+ 
+   if (ret != NULL)
+     {
+@@ -1179,7 +1168,7 @@ score_elf_link_hash_newfunc (struct bfd_
+       ret->forced_local = FALSE;
+     }
+ 
+-  return (struct bfd_hash_entry *)ret;
++  return (struct bfd_hash_entry *) ret;
+ }
+ 
+ /* Returns the first relocation of type r_type found, beginning with
+@@ -2080,7 +2069,7 @@ score_elf_final_link_relocate (reloc_how
+         {
+           g = score_elf_global_got_index (elf_hash_table (info)->dynobj,
+                                           (struct elf_link_hash_entry *) h);
+-          if ((! elf_hash_table(info)->dynamic_sections_created
++          if ((! elf_hash_table (info)->dynamic_sections_created
+                || (info->shared
+                    && (info->symbolic || h->root.dynindx == -1)
+                    && h->root.def_regular)))
+@@ -3996,28 +3985,6 @@ elf32_score_reloc_name_lookup (bfd *abfd
+   return NULL;
+ }
+ 
+-/* Create a score elf linker hash table.  */
+-
+-static struct bfd_link_hash_table *
+-s3_elf32_score_link_hash_table_create (bfd *abfd)
+-{
+-  struct score_elf_link_hash_table *ret;
+-  bfd_size_type amt = sizeof (struct score_elf_link_hash_table);
+-
+-  ret = bfd_malloc (amt);
+-  if (ret == NULL)
+-    return NULL;
+-
+-  if (!_bfd_elf_link_hash_table_init (&ret->root, abfd, score_elf_link_hash_newfunc,
+-                                      sizeof (struct score_elf_link_hash_entry)))
+-    {
+-      free (ret);
+-      return NULL;
+-    }
+-
+-  return &ret->root.root;
+-}
+-
+ static bfd_boolean
+ s3_elf32_score_print_private_bfd_data (bfd *abfd, void * ptr)
+ {
+@@ -4384,13 +4351,29 @@ elf32_score_reloc_type_lookup (bfd *abfd
+     return s7_elf32_score_reloc_type_lookup (abfd, code);
+ }
+ 
++/* Create a score elf linker hash table.
++   This is a copy of _bfd_elf_link_hash_table_create() except with a
++   different hash table entry creation function.  */
++
+ static struct bfd_link_hash_table *
+ elf32_score_link_hash_table_create (bfd *abfd)
+ {
+-  if (bfd_get_mach (abfd) == bfd_mach_score3)
+-    return s3_elf32_score_link_hash_table_create (abfd);
+-  else
+-    return s7_elf32_score_link_hash_table_create (abfd);
++  struct elf_link_hash_table *ret;
++  bfd_size_type amt = sizeof (struct elf_link_hash_table);
++
++  ret = (struct elf_link_hash_table *) bfd_malloc (amt);
++  if (ret == NULL)
++    return NULL;
++
++  if (!_bfd_elf_link_hash_table_init (ret, abfd, score_elf_link_hash_newfunc,
++                                      sizeof (struct score_elf_link_hash_entry),
++				      GENERIC_ELF_DATA))
++    {
++      free (ret);
++      return NULL;
++    }
++
++  return &ret->root;
+ }
+ 
+ static bfd_boolean
+Only in b/bfd: elf32-score.c.orig
+diff -rup a/bfd/elf32-score7.c b/bfd/elf32-score7.c
+--- a/bfd/elf32-score7.c	2011-12-16 00:09:25.681026252 -0700
++++ b/bfd/elf32-score7.c	2011-12-16 00:01:26.789804813 -0700
+@@ -1,5 +1,5 @@
+ /* 32-bit ELF support for S+core.
+-   Copyright 2009 Free Software Foundation, Inc.
++   Copyright 2009, 2010 Free Software Foundation, Inc.
+    Contributed by
+    Brain.lin (brain.lin@sunplusct.com)
+    Mei Ligang (ligang@sunnorth.com.cn)
+@@ -34,13 +34,6 @@
+ #include "elf32-score.h"
+ 
+ 
+-/* Score ELF linker hash table.  */
+-struct score_elf_link_hash_table
+-{
+-  /* The main hash table.  */
+-  struct elf_link_hash_table root;
+-};
+-
+ /* The SCORE ELF linker needs additional information for each symbol in
+    the global hash table.  */
+ struct score_elf_link_hash_entry
+@@ -65,14 +58,10 @@ struct score_elf_link_hash_entry
+ /* Traverse a score ELF linker hash table.  */
+ #define score_elf_link_hash_traverse(table, func, info) \
+   (elf_link_hash_traverse \
+-   (&(table)->root, \
++   ((table),						     \
+     (bfd_boolean (*) (struct elf_link_hash_entry *, void *)) (func), \
+     (info)))
+ 
+-/* Get the SCORE elf linker hash table from a link_info structure.  */
+-#define score_elf_hash_table(info) \
+-  ((struct score_elf_link_hash_table *) ((info)->hash))
+-
+ /* This structure is used to hold .got entries while estimating got sizes.  */
+ struct score_got_entry
+ {
+@@ -1020,10 +1009,9 @@ score_elf_sort_hash_table (struct bfd_li
+        too large offsets.  */
+     - (g->next ? g->assigned_gotno : 0);
+   hsd.max_non_got_dynindx = max_local;
+-  score_elf_link_hash_traverse (((struct score_elf_link_hash_table *)
+-                                 elf_hash_table (info)),
+-                                 score_elf_sort_hash_table_f,
+-                                 &hsd);
++  score_elf_link_hash_traverse (elf_hash_table (info),
++				score_elf_sort_hash_table_f,
++				&hsd);
+ 
+   /* There should have been enough room in the symbol table to
+      accommodate both the GOT and non-GOT symbols.  */
+@@ -1038,36 +1026,6 @@ score_elf_sort_hash_table (struct bfd_li
+   return TRUE;
+ }
+ 
+-/* Create an entry in an score ELF linker hash table.  */
+-
+-static struct bfd_hash_entry *
+-score_elf_link_hash_newfunc (struct bfd_hash_entry *entry,
+-                             struct bfd_hash_table *table,
+-                             const char *string)
+-{
+-  struct score_elf_link_hash_entry *ret = (struct score_elf_link_hash_entry *) entry;
+-
+-  /* Allocate the structure if it has not already been allocated by a subclass.  */
+-  if (ret == NULL)
+-    ret = bfd_hash_allocate (table, sizeof (struct score_elf_link_hash_entry));
+-  if (ret == NULL)
+-    return (struct bfd_hash_entry *) ret;
+-
+-  /* Call the allocation method of the superclass.  */
+-  ret = ((struct score_elf_link_hash_entry *)
+-         _bfd_elf_link_hash_newfunc ((struct bfd_hash_entry *) ret, table, string));
+-
+-  if (ret != NULL)
+-    {
+-      ret->possibly_dynamic_relocs = 0;
+-      ret->readonly_reloc = FALSE;
+-      ret->no_fn_stub = FALSE;
+-      ret->forced_local = FALSE;
+-    }
+-
+-  return (struct bfd_hash_entry *) ret;
+-}
+-
+ /* Returns the first relocation of type r_type found, beginning with
+    RELOCATION.  RELEND is one-past-the-end of the relocation table.  */
+ 
+@@ -3833,28 +3791,6 @@ s7_elf32_score_reloc_type_lookup (bfd *a
+   return NULL;
+ }
+ 
+-/* Create a score elf linker hash table.  */
+-
+-struct bfd_link_hash_table *
+-s7_elf32_score_link_hash_table_create (bfd *abfd)
+-{
+-  struct score_elf_link_hash_table *ret;
+-  bfd_size_type amt = sizeof (struct score_elf_link_hash_table);
+-
+-  ret = bfd_malloc (amt);
+-  if (ret == NULL)
+-    return NULL;
+-
+-  if (!_bfd_elf_link_hash_table_init (&ret->root, abfd, score_elf_link_hash_newfunc,
+-                                      sizeof (struct score_elf_link_hash_entry)))
+-    {
+-      free (ret);
+-      return NULL;
+-    }
+-
+-  return &ret->root.root;
+-}
+-
+ bfd_boolean
+ s7_elf32_score_print_private_bfd_data (bfd *abfd, void * ptr)
+ {
+Only in b/bfd: elf32-score7.c.orig
+diff -rup a/bfd/elf32-sh.c b/bfd/elf32-sh.c
+--- a/bfd/elf32-sh.c	2011-12-16 00:09:25.682026253 -0700
++++ b/bfd/elf32-sh.c	2011-12-16 00:01:26.791804813 -0700
+@@ -1,6 +1,6 @@
+ /* Renesas / SuperH SH specific support for 32-bit ELF
+    Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+-   2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+    Contributed by Ian Lance Taylor, Cygnus Support.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -2157,7 +2157,7 @@ struct sh_elf_obj_tdata
+ #define is_sh_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+    && elf_tdata (bfd) != NULL \
+-   && elf_object_id (bfd) == SH_ELF_TDATA)
++   && elf_object_id (bfd) == SH_ELF_DATA)
+ 
+ /* Override the generic function because we need to store sh_elf_obj_tdata
+    as the specific tdata.  */
+@@ -2166,7 +2166,7 @@ static bfd_boolean
+ sh_elf_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct sh_elf_obj_tdata),
+-				  SH_ELF_TDATA);
++				  SH_ELF_DATA);
+ }
+ 
+ /* sh ELF linker hash table.  */
+@@ -2215,7 +2215,8 @@ struct elf_sh_link_hash_table
+ /* Get the sh ELF linker hash table from a link_info structure.  */
+ 
+ #define sh_elf_hash_table(p) \
+-  ((struct elf_sh_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == SH_ELF_DATA ? ((struct elf_sh_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in an sh ELF linker hash table.  */
+ 
+@@ -2267,7 +2268,8 @@ sh_elf_link_hash_table_create (bfd *abfd
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      sh_elf_link_hash_newfunc,
+-				      sizeof (struct elf_sh_link_hash_entry)))
++				      sizeof (struct elf_sh_link_hash_entry),
++				      SH_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -2301,6 +2303,9 @@ create_got_section (bfd *dynobj, struct
+     return FALSE;
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->sgot = bfd_get_section_by_name (dynobj, ".got");
+   htab->sgotplt = bfd_get_section_by_name (dynobj, ".got.plt");
+   htab->srelgot = bfd_get_section_by_name (dynobj, ".rela.got");
+@@ -2336,6 +2341,9 @@ sh_elf_create_dynamic_sections (bfd *abf
+     }
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (htab->root.dynamic_sections_created)
+     return TRUE;
+ 
+@@ -2482,6 +2490,8 @@ sh_elf_adjust_dynamic_symbol (struct bfd
+   asection *s;
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Make sure we know what is going on here.  */
+   BFD_ASSERT (htab->root.dynobj != NULL
+@@ -2628,6 +2638,8 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   eh = (struct elf_sh_link_hash_entry *) h;
+   if ((h->got.refcount > 0
+@@ -2935,6 +2947,9 @@ sh_elf_size_dynamic_sections (bfd *outpu
+   bfd *ibfd;
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->root.dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -3182,6 +3197,8 @@ sh_elf_relocate_section (bfd *output_bfd
+   BFD_ASSERT (is_sh_elf (input_bfd));
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+   symtab_hdr = &elf_symtab_hdr (input_bfd);
+   sym_hashes = elf_sym_hashes (input_bfd);
+   dynobj = htab->root.dynobj;
+@@ -4853,6 +4870,9 @@ sh_elf_check_relocs (bfd *abfd, struct b
+   sym_hashes = elf_sym_hashes (abfd);
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   local_got_offsets = elf_local_got_offsets (abfd);
+ 
+   rel_end = relocs + sec->reloc_count;
+@@ -5407,6 +5427,8 @@ sh_elf_finish_dynamic_symbol (bfd *outpu
+   struct elf_sh_link_hash_table *htab;
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+     {
+@@ -5711,6 +5733,9 @@ sh_elf_finish_dynamic_sections (bfd *out
+   asection *sdyn;
+ 
+   htab = sh_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   sgot = htab->sgotplt;
+   sdyn = bfd_get_section_by_name (htab->root.dynobj, ".dynamic");
+ 
+Only in b/bfd: elf32-sh.c.orig
+diff -rup a/bfd/elf32-spu.c b/bfd/elf32-spu.c
+--- a/bfd/elf32-spu.c	2011-12-16 00:09:25.684026254 -0700
++++ b/bfd/elf32-spu.c	2011-12-16 00:01:26.793804813 -0700
+@@ -366,7 +366,8 @@ struct got_entry
+ };
+ 
+ #define spu_hash_table(p) \
+-  ((struct spu_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == SPU_ELF_DATA ? ((struct spu_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ struct call_info
+ {
+@@ -453,7 +454,8 @@ spu_elf_link_hash_table_create (bfd *abf
+ 
+   if (!_bfd_elf_link_hash_table_init (&htab->elf, abfd,
+ 				      _bfd_elf_link_hash_newfunc,
+-				      sizeof (struct elf_link_hash_entry)))
++				      sizeof (struct elf_link_hash_entry),
++				      SPU_ELF_DATA))
+     {
+       free (htab);
+       return NULL;
+Only in b/bfd: elf32-spu.c.orig
+diff -rup a/bfd/elf32-vax.c b/bfd/elf32-vax.c
+--- a/bfd/elf32-vax.c	2011-12-16 00:09:25.686026254 -0700
++++ b/bfd/elf32-vax.c	2011-12-16 00:01:26.794804814 -0700
+@@ -1,6 +1,6 @@
+ /* VAX series support for 32-bit ELF
+    Copyright 1993, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
+-   2004, 2005, 2006, 2007, 2008, 2009  Free Software Foundation, Inc.
++   2004, 2005, 2006, 2007, 2008, 2009, 2010  Free Software Foundation, Inc.
+    Contributed by Matt Thomas <matt@3am-software.com>.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -407,35 +407,24 @@ struct elf_vax_link_hash_entry
+   bfd_vma got_addend;
+ };
+ 
+-/* VAX ELF linker hash table.  */
+-
+-struct elf_vax_link_hash_table
+-{
+-  struct elf_link_hash_table root;
+-};
+-
+ /* Declare this now that the above structures are defined.  */
+ 
+ static bfd_boolean elf_vax_discard_copies (struct elf_vax_link_hash_entry *,
+-					   PTR);
++					   void *);
+ 
+ /* Declare this now that the above structures are defined.  */
+ 
+ static bfd_boolean elf_vax_instantiate_got_entries (struct elf_link_hash_entry *,
+-						    PTR);
++						    void *);
+ 
+ /* Traverse an VAX ELF linker hash table.  */
+ 
+ #define elf_vax_link_hash_traverse(table, func, info)			\
+   (elf_link_hash_traverse						\
+-   (&(table)->root,							\
++   ((table),								\
+     (bfd_boolean (*) (struct elf_link_hash_entry *, PTR)) (func),	\
+     (info)))
+ 
+-/* Get the VAX ELF linker hash table from a link_info structure.  */
+-
+-#define elf_vax_hash_table(p) ((struct elf_vax_link_hash_table *) (p)->hash)
+-
+ /* Create an entry in an VAX ELF linker hash table.  */
+ 
+ static struct bfd_hash_entry *
+@@ -472,22 +461,23 @@ elf_vax_link_hash_newfunc (struct bfd_ha
+ static struct bfd_link_hash_table *
+ elf_vax_link_hash_table_create (bfd *abfd)
+ {
+-  struct elf_vax_link_hash_table *ret;
+-  bfd_size_type amt = sizeof (struct elf_vax_link_hash_table);
++  struct elf_link_hash_table *ret;
++  bfd_size_type amt = sizeof (struct elf_link_hash_table);
+ 
+   ret = bfd_malloc (amt);
+   if (ret == NULL)
+     return NULL;
+ 
+-  if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
++  if (!_bfd_elf_link_hash_table_init (ret, abfd,
+ 				      elf_vax_link_hash_newfunc,
+-				      sizeof (struct elf_vax_link_hash_entry)))
++				      sizeof (struct elf_vax_link_hash_entry),
++				      GENERIC_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+     }
+ 
+-  return &ret->root.root;
++  return &ret->root;
+ }
+ 
+ /* Keep vax-specific flags in the ELF header */
+@@ -1132,7 +1122,7 @@ elf_vax_size_dynamic_sections (bfd *outp
+      allocated space for them in the check_relocs routine, but we will not
+      fill them in in the relocate_section routine.  */
+   if (info->shared && info->symbolic)
+-    elf_vax_link_hash_traverse (elf_vax_hash_table (info),
++    elf_vax_link_hash_traverse (elf_hash_table (info),
+ 				elf_vax_discard_copies,
+ 				NULL);
+ 
+diff -rup a/bfd/elf32-xtensa.c b/bfd/elf32-xtensa.c
+--- a/bfd/elf32-xtensa.c	2011-12-16 00:09:25.689026255 -0700
++++ b/bfd/elf32-xtensa.c	2011-12-16 00:01:26.797804817 -0700
+@@ -1,5 +1,5 @@
+ /* Xtensa-specific support for 32-bit ELF.
+-   Copyright 2003, 2004, 2005, 2006, 2007, 2008, 2009
++   Copyright 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+    Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -576,13 +576,13 @@ struct elf_xtensa_obj_tdata
+ #define is_xtensa_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+    && elf_tdata (bfd) != NULL \
+-   && elf_object_id (bfd) == XTENSA_ELF_TDATA)
++   && elf_object_id (bfd) == XTENSA_ELF_DATA)
+ 
+ static bfd_boolean
+ elf_xtensa_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_xtensa_obj_tdata),
+-				  XTENSA_ELF_TDATA);
++				  XTENSA_ELF_DATA);
+ }
+ 
+ /* Xtensa ELF linker hash table.  */
+@@ -614,7 +614,8 @@ struct elf_xtensa_link_hash_table
+ /* Get the Xtensa ELF linker hash table from a link_info structure.  */
+ 
+ #define elf_xtensa_hash_table(p) \
+-  ((struct elf_xtensa_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == XTENSA_ELF_DATA ? ((struct elf_xtensa_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in an Xtensa ELF linker hash table.  */
+ 
+@@ -660,7 +661,8 @@ elf_xtensa_link_hash_table_create (bfd *
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd,
+ 				      elf_xtensa_link_hash_newfunc,
+-				      sizeof (struct elf_xtensa_link_hash_entry)))
++				      sizeof (struct elf_xtensa_link_hash_entry),
++				      XTENSA_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -981,6 +983,9 @@ elf_xtensa_check_relocs (bfd *abfd,
+   BFD_ASSERT (is_xtensa_elf (abfd));
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (abfd);
+ 
+@@ -1282,6 +1287,8 @@ elf_xtensa_gc_sweep_hook (bfd *abfd,
+   struct elf_xtensa_link_hash_table *htab;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (info->relocatable)
+     return TRUE;
+@@ -1401,6 +1408,8 @@ elf_xtensa_create_dynamic_sections (bfd
+   flagword flags, noalloc_flags;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* First do all the standard stuff.  */
+   if (! _bfd_elf_create_dynamic_sections (dynobj, info))
+@@ -1527,6 +1536,8 @@ elf_xtensa_allocate_dynrelocs (struct el
+ 
+   info = (struct bfd_link_info *) arg;
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* If we saw any use of an IE model for this symbol, we can then optimize
+      away GOT entries for any TLSDESC_FN relocs.  */
+@@ -1556,6 +1567,8 @@ elf_xtensa_allocate_local_got_size (stru
+   bfd *i;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return;
+ 
+   for (i = info->input_bfds; i; i = i->link_next)
+     {
+@@ -1606,6 +1619,9 @@ elf_xtensa_size_dynamic_sections (bfd *o
+   plt_chunks = 0;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+   if (dynobj == NULL)
+     abort ();
+@@ -1839,6 +1855,9 @@ elf_xtensa_always_size_sections (bfd *ou
+   asection *tls_sec;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   tls_sec = htab->elf.tls_sec;
+ 
+   if (tls_sec && (htab->tlsbase->tls_type & GOT_TLS_ANY) != 0)
+@@ -2551,6 +2570,9 @@ elf_xtensa_relocate_section (bfd *output
+   BFD_ASSERT (is_xtensa_elf (input_bfd));
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (input_bfd);
+   local_got_tls_types = elf_xtensa_local_got_tls_type (input_bfd);
+@@ -3231,6 +3253,9 @@ elf_xtensa_finish_dynamic_sections (bfd
+     return TRUE;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = elf_hash_table (info)->dynobj;
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+   BFD_ASSERT (sdyn != NULL);
+@@ -9495,6 +9520,9 @@ shrink_dynamic_reloc_sections (struct bf
+   bfd_boolean dynamic_symbol;
+ 
+   htab = elf_xtensa_hash_table (info);
++  if (htab == NULL)
++    return;
++
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (abfd);
+ 
+@@ -10225,6 +10253,9 @@ elf_xtensa_get_plt_section (struct bfd_l
+   if (chunk == 0)
+     {
+       htab = elf_xtensa_hash_table (info);
++      if (htab == NULL)
++	return NULL;
++
+       return htab->splt;
+     }
+ 
+@@ -10244,6 +10275,8 @@ elf_xtensa_get_gotplt_section (struct bf
+   if (chunk == 0)
+     {
+       htab = elf_xtensa_hash_table (info);
++      if (htab == NULL)
++	return NULL;
+       return htab->sgotplt;
+     }
+ 
+Only in b/bfd: elf32-xtensa.c.orig
+diff -rup a/bfd/elf64-alpha.c b/bfd/elf64-alpha.c
+--- a/bfd/elf64-alpha.c	2011-12-16 00:09:25.691026256 -0700
++++ b/bfd/elf64-alpha.c	2011-12-16 00:01:26.799804817 -0700
+@@ -1,6 +1,6 @@
+ /* Alpha specific support for 64-bit ELF
+    Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+-   2006, 2007, 2008, 2009  Free Software Foundation, Inc.
++   2006, 2007, 2008, 2009, 2010  Free Software Foundation, Inc.
+    Contributed by Richard Henderson <rth@tamu.edu>.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -216,7 +216,8 @@ struct alpha_elf_link_hash_table
+ /* Get the Alpha ELF linker hash table from a link_info structure.  */
+ 
+ #define alpha_elf_hash_table(p) \
+-  ((struct alpha_elf_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == ALPHA_ELF_DATA ? ((struct alpha_elf_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Get the object's symbols as our own entry type.  */
+ 
+@@ -287,7 +288,8 @@ elf64_alpha_bfd_link_hash_table_create (
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      elf64_alpha_link_hash_newfunc,
+-				      sizeof (struct alpha_elf_link_hash_entry)))
++				      sizeof (struct alpha_elf_link_hash_entry),
++				      ALPHA_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -333,13 +335,13 @@ struct alpha_elf_obj_tdata
+ #define is_alpha_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+    && elf_tdata (bfd) != NULL \
+-   && elf_object_id (bfd) == ALPHA_ELF_TDATA)
++   && elf_object_id (bfd) == ALPHA_ELF_DATA)
+ 
+ static bfd_boolean
+ elf64_alpha_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct alpha_elf_obj_tdata),
+-				  ALPHA_ELF_TDATA);
++				  ALPHA_ELF_DATA);
+ }
+ 
+ static bfd_boolean
+@@ -2322,7 +2324,13 @@ elf64_alpha_calc_got_offsets_for_symbol
+ static void
+ elf64_alpha_calc_got_offsets (struct bfd_link_info *info)
+ {
+-  bfd *i, *got_list = alpha_elf_hash_table(info)->got_list;
++  bfd *i, *got_list;
++  struct alpha_elf_link_hash_table * htab;
++
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return;
++  got_list = htab->got_list;
+ 
+   /* First, zero out the .got sizes, as we may be recalculating the
+      .got after optimizing it.  */
+@@ -2330,7 +2338,7 @@ elf64_alpha_calc_got_offsets (struct bfd
+     alpha_elf_tdata(i)->got->size = 0;
+ 
+   /* Next, fill in the offsets for all the global entries.  */
+-  alpha_elf_link_hash_traverse (alpha_elf_hash_table (info),
++  alpha_elf_link_hash_traverse (htab,
+ 				elf64_alpha_calc_got_offsets_for_symbol,
+ 				NULL);
+ 
+@@ -2368,8 +2376,12 @@ static bfd_boolean
+ elf64_alpha_size_got_sections (struct bfd_link_info *info)
+ {
+   bfd *i, *got_list, *cur_got_obj = NULL;
++  struct alpha_elf_link_hash_table * htab;
+ 
+-  got_list = alpha_elf_hash_table (info)->got_list;
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++  got_list = htab->got_list;
+ 
+   /* On the first time through, pretend we have an existing got list
+      consisting of all of the input files.  */
+@@ -2409,7 +2421,7 @@ elf64_alpha_size_got_sections (struct bf
+       if (got_list == NULL)
+ 	return TRUE;
+ 
+-      alpha_elf_hash_table (info)->got_list = got_list;
++      htab->got_list = got_list;
+     }
+ 
+   cur_got_obj = got_list;
+@@ -2480,6 +2492,11 @@ elf64_alpha_size_plt_section (struct bfd
+   asection *splt, *spltrel, *sgotplt;
+   unsigned long entries;
+   bfd *dynobj;
++  struct alpha_elf_link_hash_table * htab;
++
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return;
+ 
+   dynobj = elf_hash_table(info)->dynobj;
+   splt = bfd_get_section_by_name (dynobj, ".plt");
+@@ -2488,7 +2505,7 @@ elf64_alpha_size_plt_section (struct bfd
+ 
+   splt->size = 0;
+ 
+-  alpha_elf_link_hash_traverse (alpha_elf_hash_table (info),
++  alpha_elf_link_hash_traverse (htab,
+ 				elf64_alpha_size_plt_section_1, splt);
+ 
+   /* Every plt entry requires a JMP_SLOT relocation.  */
+@@ -2518,20 +2535,24 @@ elf64_alpha_always_size_sections (bfd *o
+ 				  struct bfd_link_info *info)
+ {
+   bfd *i;
++  struct alpha_elf_link_hash_table * htab;
+ 
+   if (info->relocatable)
+     return TRUE;
+ 
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   /* First, take care of the indirect symbols created by versioning.  */
+-  alpha_elf_link_hash_traverse (alpha_elf_hash_table (info),
+-				elf64_alpha_merge_ind_symbols,
++  alpha_elf_link_hash_traverse (htab, elf64_alpha_merge_ind_symbols,
+ 				NULL);
+ 
+   if (!elf64_alpha_size_got_sections (info))
+     return FALSE;
+ 
+   /* Allocate space for all of the .got subsections.  */
+-  i = alpha_elf_hash_table (info)->got_list;
++  i = htab->got_list;
+   for ( ; i ; i = alpha_elf_tdata(i)->got_link_next)
+     {
+       asection *s = alpha_elf_tdata(i)->got;
+@@ -2687,12 +2708,17 @@ elf64_alpha_size_rela_got_section (struc
+   unsigned long entries;
+   bfd *i, *dynobj;
+   asection *srel;
++  struct alpha_elf_link_hash_table * htab;
++
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return;
+ 
+   /* Shared libraries often require RELATIVE relocs, and some relocs
+      require attention for the main application as well.  */
+ 
+   entries = 0;
+-  for (i = alpha_elf_hash_table(info)->got_list;
++  for (i = htab->got_list;
+        i ; i = alpha_elf_tdata(i)->got_link_next)
+     {
+       bfd *j;
+@@ -2725,7 +2751,7 @@ elf64_alpha_size_rela_got_section (struc
+   srel->size = sizeof (Elf64_External_Rela) * entries;
+ 
+   /* Now do the non-local symbols.  */
+-  alpha_elf_link_hash_traverse (alpha_elf_hash_table (info),
++  alpha_elf_link_hash_traverse (htab,
+ 				elf64_alpha_size_rela_got_1, info);
+ }
+ 
+@@ -2738,6 +2764,11 @@ elf64_alpha_size_dynamic_sections (bfd *
+   bfd *dynobj;
+   asection *s;
+   bfd_boolean relplt;
++  struct alpha_elf_link_hash_table * htab;
++
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   dynobj = elf_hash_table(info)->dynobj;
+   BFD_ASSERT(dynobj != NULL);
+@@ -2757,7 +2788,7 @@ elf64_alpha_size_dynamic_sections (bfd *
+ 	 symbols need dynamic relocation entries and which don't.  We've
+ 	 collected information in check_relocs that we can now apply to
+ 	 size the dynamic relocation sections.  */
+-      alpha_elf_link_hash_traverse (alpha_elf_hash_table (info),
++      alpha_elf_link_hash_traverse (htab,
+ 				    elf64_alpha_calc_dynrel_sizes, info);
+ 
+       elf64_alpha_size_rela_got_section (info);
+@@ -3597,6 +3628,11 @@ elf64_alpha_relax_section (bfd *abfd, as
+   Elf_Internal_Sym *isymbuf = NULL;
+   struct alpha_elf_got_entry **local_got_entries;
+   struct alpha_relax_info info;
++  struct alpha_elf_link_hash_table * htab;
++
++  htab = alpha_elf_hash_table (link_info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* There's nothing to change, yet.  */
+   *again = FALSE;
+@@ -3610,9 +3646,9 @@ elf64_alpha_relax_section (bfd *abfd, as
+   BFD_ASSERT (is_alpha_elf (abfd));
+ 
+   /* Make sure our GOT and PLT tables are up-to-date.  */
+-  if (alpha_elf_hash_table(link_info)->relax_trip != link_info->relax_trip)
++  if (htab->relax_trip != link_info->relax_trip)
+     {
+-      alpha_elf_hash_table(link_info)->relax_trip = link_info->relax_trip;
++      htab->relax_trip = link_info->relax_trip;
+ 
+       /* This should never fail after the initial round, since the only
+ 	 error is GOT overflow, and relaxation only shrinks the table.  */
+@@ -4920,7 +4956,12 @@ elf64_alpha_final_link (bfd *abfd, struc
+   const struct ecoff_debug_swap *swap
+     = get_elf_backend_data (abfd)->elf_backend_ecoff_debug_swap;
+   HDRR *symhdr = &debug.symbolic_header;
+-  PTR mdebug_handle = NULL;
++  void * mdebug_handle = NULL;
++  struct alpha_elf_link_hash_table * htab;
++
++  htab = alpha_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Go through the sections and collect the mdebug information.  */
+   mdebug_sec = NULL;
+@@ -5075,8 +5116,7 @@ elf64_alpha_final_link (bfd *abfd, struc
+ 		    continue;
+ 
+ 		  name = input_debug.ssext + ext.asym.iss;
+-		  h = alpha_elf_link_hash_lookup (alpha_elf_hash_table (info),
+-						  name, FALSE, FALSE, TRUE);
++		  h = alpha_elf_link_hash_lookup (htab, name, FALSE, FALSE, TRUE);
+ 		  if (h == NULL || h->esym.ifd != -2)
+ 		    continue;
+ 
+@@ -5140,7 +5180,7 @@ elf64_alpha_final_link (bfd *abfd, struc
+   /* The .got subsections...  */
+   {
+     bfd *i, *dynobj = elf_hash_table(info)->dynobj;
+-    for (i = alpha_elf_hash_table(info)->got_list;
++    for (i = htab->got_list;
+ 	 i != NULL;
+ 	 i = alpha_elf_tdata(i)->got_link_next)
+       {
+Only in b/bfd: elf64-alpha.c.orig
+diff -rup a/bfd/elf64-hppa.c b/bfd/elf64-hppa.c
+--- a/bfd/elf64-hppa.c	2011-12-16 00:09:25.692026256 -0700
++++ b/bfd/elf64-hppa.c	2011-12-16 00:01:26.800804817 -0700
+@@ -1,6 +1,6 @@
+ /* Support for HPPA 64-bit ELF
+-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+-   Free Software Foundation, Inc.
++   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
++   2010  Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -148,7 +148,8 @@ struct elf64_hppa_link_hash_table
+ };
+ 
+ #define hppa_link_hash_table(p) \
+-  ((struct elf64_hppa_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == HPPA64_ELF_DATA ? ((struct elf64_hppa_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define hppa_elf_hash_entry(ent) \
+   ((struct elf64_hppa_link_hash_entry *)(ent))
+@@ -303,7 +304,8 @@ elf64_hppa_hash_table_create (bfd *abfd)
+ 
+   if (!_bfd_elf_link_hash_table_init (&htab->root, abfd,
+ 				      hppa64_link_hash_newfunc,
+-				      sizeof (struct elf64_hppa_link_hash_entry)))
++				      sizeof (struct elf64_hppa_link_hash_entry),
++				      HPPA64_ELF_DATA))
+     {
+       bfd_release (abfd, htab);
+       return NULL;
+@@ -530,6 +532,8 @@ elf64_hppa_check_relocs (bfd *abfd,
+     }
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+ 
+   /* If necessary, build a new table holding section symbols indices
+@@ -951,6 +955,8 @@ elf64_hppa_mark_exported_functions (stru
+   struct elf64_hppa_link_hash_table *hppa_info;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+ 
+   if (eh->root.type == bfd_link_hash_warning)
+     eh = (struct elf_link_hash_entry *) eh->root.u.i.link;
+@@ -1012,7 +1018,7 @@ static bfd_boolean
+ allocate_global_data_plt (struct elf_link_hash_entry *eh, void *data)
+ {
+   struct elf64_hppa_link_hash_entry *hh = hppa_elf_hash_entry (eh);
+-  struct elf64_hppa_allocate_data *x = (struct elf64_hppa_allocate_data *)data;
++  struct elf64_hppa_allocate_data *x = (struct elf64_hppa_allocate_data *) data;
+ 
+   if (hh->want_plt
+       && elf64_hppa_dynamic_symbol_p (eh, x->info)
+@@ -1023,7 +1029,15 @@ allocate_global_data_plt (struct elf_lin
+       hh->plt_offset = x->ofs;
+       x->ofs += PLT_ENTRY_SIZE;
+       if (hh->plt_offset < 0x2000)
+-	hppa_link_hash_table (x->info)->gp_offset = hh->plt_offset;
++	{
++	  struct elf64_hppa_link_hash_table *hppa_info;
++
++	  hppa_info = hppa_link_hash_table (x->info);
++	  if (hppa_info == NULL)
++	    return FALSE;
++
++	  hppa_info->gp_offset = hh->plt_offset;
++	}
+     }
+   else
+     hh->want_plt = 0;
+@@ -1340,17 +1354,22 @@ elf64_hppa_create_dynamic_sections (bfd
+ 				    struct bfd_link_info *info)
+ {
+   asection *s;
++  struct elf64_hppa_link_hash_table *hppa_info;
++
++  hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+ 
+-  if (! get_stub (abfd, info, hppa_link_hash_table (info)))
++  if (! get_stub (abfd, info, hppa_info))
+     return FALSE;
+ 
+-  if (! get_dlt (abfd, info, hppa_link_hash_table (info)))
++  if (! get_dlt (abfd, info, hppa_info))
+     return FALSE;
+ 
+-  if (! get_plt (abfd, info, hppa_link_hash_table (info)))
++  if (! get_plt (abfd, info, hppa_info))
+     return FALSE;
+ 
+-  if (! get_opd (abfd, info, hppa_link_hash_table (info)))
++  if (! get_opd (abfd, info, hppa_info))
+     return FALSE;
+ 
+   s = bfd_make_section_with_flags (abfd, ".rela.dlt",
+@@ -1362,7 +1381,7 @@ elf64_hppa_create_dynamic_sections (bfd
+   if (s == NULL
+       || !bfd_set_section_alignment (abfd, s, 3))
+     return FALSE;
+-  hppa_link_hash_table (info)->dlt_rel_sec = s;
++  hppa_info->dlt_rel_sec = s;
+ 
+   s = bfd_make_section_with_flags (abfd, ".rela.plt",
+ 				   (SEC_ALLOC | SEC_LOAD
+@@ -1373,7 +1392,7 @@ elf64_hppa_create_dynamic_sections (bfd
+   if (s == NULL
+       || !bfd_set_section_alignment (abfd, s, 3))
+     return FALSE;
+-  hppa_link_hash_table (info)->plt_rel_sec = s;
++  hppa_info->plt_rel_sec = s;
+ 
+   s = bfd_make_section_with_flags (abfd, ".rela.data",
+ 				   (SEC_ALLOC | SEC_LOAD
+@@ -1384,7 +1403,7 @@ elf64_hppa_create_dynamic_sections (bfd
+   if (s == NULL
+       || !bfd_set_section_alignment (abfd, s, 3))
+     return FALSE;
+-  hppa_link_hash_table (info)->other_rel_sec = s;
++  hppa_info->other_rel_sec = s;
+ 
+   s = bfd_make_section_with_flags (abfd, ".rela.opd",
+ 				   (SEC_ALLOC | SEC_LOAD
+@@ -1395,7 +1414,7 @@ elf64_hppa_create_dynamic_sections (bfd
+   if (s == NULL
+       || !bfd_set_section_alignment (abfd, s, 3))
+     return FALSE;
+-  hppa_link_hash_table (info)->opd_rel_sec = s;
++  hppa_info->opd_rel_sec = s;
+ 
+   return TRUE;
+ }
+@@ -1413,6 +1432,9 @@ allocate_dynrel_entries (struct elf_link
+   bfd_boolean dynamic_symbol, shared;
+ 
+   hppa_info = hppa_link_hash_table (x->info);
++  if (hppa_info == NULL)
++    return FALSE;
++
+   dynamic_symbol = elf64_hppa_dynamic_symbol_p (eh, x->info);
+   shared = x->info->shared;
+ 
+@@ -1547,6 +1569,8 @@ elf64_hppa_size_dynamic_sections (bfd *o
+   bfd_boolean reltext;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+ 
+   dynobj = elf_hash_table (info)->dynobj;
+   BFD_ASSERT (dynobj != NULL);
+@@ -1959,6 +1983,8 @@ elf64_hppa_finish_dynamic_symbol (bfd *o
+   struct elf64_hppa_link_hash_table *hppa_info;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+ 
+   stub = hppa_info->stub_sec;
+   splt = hppa_info->plt_sec;
+@@ -2130,6 +2156,9 @@ elf64_hppa_finalize_opd (struct elf_link
+   asection *sopdrel;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
++
+   sopd = hppa_info->opd_sec;
+   sopdrel = hppa_info->opd_rel_sec;
+ 
+@@ -2247,6 +2276,8 @@ elf64_hppa_finalize_dlt (struct elf_link
+   asection *sdlt, *sdltrel;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+ 
+   sdlt = hppa_info->dlt_sec;
+   sdltrel = hppa_info->dlt_rel_sec;
+@@ -2350,6 +2381,8 @@ elf64_hppa_finalize_dynreloc (struct elf
+       int dynindx;
+ 
+       hppa_info = hppa_link_hash_table (info);
++      if (hppa_info == NULL)
++	return FALSE;
+ 
+       /* We may need to do a relocation against a local symbol, in
+ 	 which case we have to look up it's dynamic symbol index off
+@@ -2473,6 +2506,8 @@ elf64_hppa_finish_dynamic_sections (bfd
+   struct elf64_hppa_link_hash_table *hppa_info;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
+ 
+   /* Finalize the contents of the .opd section.  */
+   elf_link_hash_traverse (elf_hash_table (info),
+@@ -2947,6 +2982,9 @@ elf_hppa_final_link (bfd *abfd, struct b
+   bfd_boolean retval;
+   struct elf64_hppa_link_hash_table *hppa_info = hppa_link_hash_table (info);
+ 
++  if (hppa_info == NULL)
++    return FALSE;
++
+   if (! info->relocatable)
+     {
+       struct elf_link_hash_entry *gp;
+@@ -3188,6 +3226,9 @@ elf_hppa_final_link_relocate (Elf_Intern
+   unsigned int r_type = howto->type;
+   bfd_byte *hit_data = contents + offset;
+ 
++  if (hppa_info == NULL)
++    return bfd_reloc_notsupported;
++  
+   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+   local_offsets = elf_local_got_offsets (input_bfd);
+   insn = bfd_get_32 (input_bfd, hit_data);
+@@ -3811,6 +3852,9 @@ elf64_hppa_relocate_section (bfd *output
+   struct elf64_hppa_link_hash_table *hppa_info;
+ 
+   hppa_info = hppa_link_hash_table (info);
++  if (hppa_info == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+ 
+   rel = relocs;
+Only in b/bfd: elf64-hppa.c.orig
+diff -rup a/bfd/elf64-ppc.c b/bfd/elf64-ppc.c
+--- a/bfd/elf64-ppc.c	2011-12-16 00:09:26.011026402 -0700
++++ b/bfd/elf64-ppc.c	2011-12-16 00:07:06.144962363 -0700
+@@ -2606,7 +2606,7 @@ struct ppc64_elf_obj_tdata
+ 
+ #define is_ppc64_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+-   && elf_object_id (bfd) == PPC64_ELF_TDATA)
++   && elf_object_id (bfd) == PPC64_ELF_DATA)
+ 
+ /* Override the generic function because we store some extras.  */
+ 
+@@ -2614,7 +2614,7 @@ static bfd_boolean
+ ppc64_elf_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct ppc64_elf_obj_tdata),
+-				  PPC64_ELF_TDATA);
++				  PPC64_ELF_DATA);
+ }
+ 
+ /* Fix bad default arch selected for a 64 bit input bfd when the
+@@ -3826,7 +3826,8 @@ struct ppc_link_hash_table
+ /* Get the ppc64 ELF linker hash table from a link_info structure.  */
+ 
+ #define ppc_hash_table(p) \
+-  ((struct ppc_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == PPC64_ELF_DATA ? ((struct ppc_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ #define ppc_stub_hash_lookup(table, string, create, copy) \
+   ((struct ppc_stub_hash_entry *) \
+@@ -3971,7 +3972,8 @@ ppc64_elf_link_hash_table_create (bfd *a
+     return NULL;
+ 
+   if (!_bfd_elf_link_hash_table_init (&htab->elf, abfd, link_hash_newfunc,
+-				      sizeof (struct ppc_link_hash_entry)))
++				      sizeof (struct ppc_link_hash_entry),
++				      PPC64_ELF_DATA))
+     {
+       free (htab);
+       return NULL;
+@@ -4028,6 +4030,8 @@ ppc64_elf_init_stub_bfd (bfd *abfd, stru
+    linker created stub bfd.  This ensures that the GOT header is at
+    the start of the output TOC section.  */
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return;
+   htab->stub_bfd = abfd;
+   htab->elf.dynobj = abfd;
+ }
+@@ -4187,6 +4191,8 @@ create_linkage_sections (bfd *dynobj, st
+   flagword flags;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Create .sfpr for code to save and restore fp regs.  */
+   flags = (SEC_ALLOC | SEC_LOAD | SEC_CODE | SEC_READONLY
+@@ -4255,6 +4261,8 @@ create_got_section (bfd *abfd, struct bf
+ 
+   if (!is_ppc64_elf (abfd))
+     return FALSE;
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (!htab->got)
+     {
+@@ -4296,6 +4304,9 @@ ppc64_elf_create_dynamic_sections (bfd *
+     return FALSE;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (!htab->got)
+     htab->got = bfd_get_section_by_name (dynobj, ".got");
+   htab->plt = bfd_get_section_by_name (dynobj, ".plt");
+@@ -4631,6 +4642,9 @@ add_symbol_adjust (struct ppc_link_hash_
+     abort ();
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   fdh = lookup_fdh (eh, htab);
+   if (fdh == NULL)
+     {
+@@ -4678,9 +4692,11 @@ ppc64_elf_process_dot_syms (bfd *ibfd, s
+   struct ppc_link_hash_table *htab;
+   struct ppc_link_hash_entry **p, *eh;
+ 
+-  htab = ppc_hash_table (info);
+   if (!is_ppc64_elf (info->output_bfd))
+     return TRUE;
++  htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (is_ppc64_elf (ibfd))
+     {
+@@ -4719,7 +4735,12 @@ static bfd_boolean
+ ppc64_elf_as_needed_cleanup (bfd *ibfd ATTRIBUTE_UNUSED,
+ 			     struct bfd_link_info *info)
+ {
+-  ppc_hash_table (info)->dot_syms = NULL;
++  struct ppc_link_hash_table *htab = ppc_hash_table (info);
++
++  if (htab == NULL)
++    return FALSE;
++
++  htab->dot_syms = NULL;
+   return TRUE;
+ }
+ 
+@@ -4845,6 +4866,9 @@ ppc64_elf_check_relocs (bfd *abfd, struc
+   BFD_ASSERT (is_ppc64_elf (abfd));
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   tga = elf_link_hash_lookup (&htab->elf, "__tls_get_addr",
+ 			      FALSE, FALSE, TRUE);
+   dottga = elf_link_hash_lookup (&htab->elf, ".__tls_get_addr",
+@@ -5596,6 +5620,9 @@ ppc64_elf_gc_keep (struct bfd_link_info
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+   struct bfd_sym_chain *sym;
+ 
++  if (htab == NULL)
++    return;
++
+   for (sym = info->gc_sym_list; sym != NULL; sym = sym->next)
+     {
+       struct ppc_link_hash_entry *eh, *fh;
+@@ -5783,6 +5810,9 @@ ppc64_elf_gc_sweep_hook (bfd *abfd, stru
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_symtab_hdr (abfd);
+   sym_hashes = elf_sym_hashes (abfd);
+   local_got_ents = elf_local_got_ents (abfd);
+@@ -5946,7 +5976,7 @@ struct sfpr_def_parms
+ 
+ /* Auto-generate _save*, _rest* functions in .sfpr.  */
+ 
+-static unsigned int
++static bfd_boolean
+ sfpr_define (struct bfd_link_info *info, const struct sfpr_def_parms *parm)
+ {
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+@@ -5955,6 +5985,9 @@ sfpr_define (struct bfd_link_info *info,
+   bfd_boolean writing = FALSE;
+   char sym[16];
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   memcpy (sym, parm->name, len);
+   sym[len + 2] = 0;
+ 
+@@ -6181,6 +6214,8 @@ func_desc_adjust (struct elf_link_hash_e
+ 
+   info = inf;
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Resolve undefined references to dot-symbols as the value
+      in the function descriptor, if we have one in a regular object.
+@@ -6319,6 +6354,9 @@ ppc64_elf_func_desc_adjust (bfd *obfd AT
+     };
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (htab->sfpr == NULL)
+     /* We don't have any relocs.  */
+     return TRUE;
+@@ -6351,6 +6389,8 @@ ppc64_elf_adjust_dynamic_symbol (struct
+   asection *s;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Deal with function syms.  */
+   if (h->type == STT_FUNC
+@@ -6510,6 +6550,9 @@ ppc64_elf_hide_symbol (struct bfd_link_i
+ 	  save = *p;
+ 	  *(char *) p = '.';
+ 	  htab = ppc_hash_table (info);
++	  if (htab == NULL)
++	    return;
++
+ 	  fh = (struct ppc_link_hash_entry *)
+ 	    elf_link_hash_lookup (&htab->elf, p, FALSE, FALSE, FALSE);
+ 	  *(char *) p = save;
+@@ -7123,8 +7166,12 @@ ppc64_elf_edit_opd (struct bfd_link_info
+ 		  if (h != NULL
+ 		      && h->root.root.string[0] == '.')
+ 		    {
+-		      fdh = lookup_fdh ((struct ppc_link_hash_entry *) h,
+-					ppc_hash_table (info));
++		      struct ppc_link_hash_table *htab;
++
++		      htab = ppc_hash_table (info);
++		      if (htab != NULL)
++			fdh = lookup_fdh ((struct ppc_link_hash_entry *) h,
++					  htab);
+ 		      if (fdh != NULL
+ 			  && fdh->elf.root.type != bfd_link_hash_defined
+ 			  && fdh->elf.root.type != bfd_link_hash_defweak)
+@@ -7281,6 +7328,10 @@ ppc64_elf_tls_setup (struct bfd_link_inf
+   struct ppc_link_hash_table *htab;
+ 
+   htab = ppc_hash_table (info);
++
++  if (htab == NULL)
++    return NULL;
++
+   if (*no_multi_toc)
+     htab->do_multi_toc = 0;
+   else if (!htab->do_multi_toc)
+@@ -7414,6 +7465,9 @@ ppc64_elf_tls_optimize (struct bfd_link_
+     return TRUE;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   for (ibfd = info->input_bfds; ibfd != NULL; ibfd = ibfd->link_next)
+     {
+       Elf_Internal_Sym *locsyms = NULL;
+@@ -8512,6 +8566,8 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if ((htab->elf.dynamic_sections_created
+        && h->dynindx != -1
+@@ -8783,6 +8839,9 @@ ppc64_elf_size_dynamic_sections (bfd *ou
+   struct got_entry *first_tlsld;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   if (dynobj == NULL)
+     abort ();
+@@ -9368,6 +9427,8 @@ ppc_build_one_stub (struct bfd_hash_entr
+   info = in_arg;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Make a note of the offset within the stubs for this entry.  */
+   stub_entry->stub_offset = stub_entry->stub_sec->size;
+@@ -9766,6 +9827,8 @@ ppc_size_one_stub (struct bfd_hash_entry
+   info = in_arg;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (stub_entry->stub_type == ppc_stub_plt_call)
+     {
+@@ -9917,6 +9980,8 @@ ppc64_elf_setup_section_lists
+   bfd_size_type amt;
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+ 
++  if (htab == NULL)
++    return -1;
+   /* Stash our params away.  */
+   htab->add_stub_section = add_stub_section;
+   htab->layout_sections_again = layout_sections_again;
+@@ -9992,6 +10057,9 @@ ppc64_elf_next_toc_section (struct bfd_l
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+   bfd_vma addr, off, limit;
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   if (!htab->second_toc_pass)
+     {
+       /* Keep track of the first .toc or .got section for this input bfd.  */
+@@ -10272,6 +10340,9 @@ ppc64_elf_finish_multitoc_partition (str
+ {
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+ 
++  if (htab == NULL)
++    return;
++
+   /* After the second pass, toc_curr tracks the TOC offset used
+      for code sections below in ppc64_elf_next_input_section.  */
+   htab->toc_curr = TOC_BASE_OFF;
+@@ -10500,6 +10571,9 @@ ppc64_elf_next_input_section (struct bfd
+ {
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   if ((isec->output_section->flags & SEC_CODE) != 0
+       && isec->output_section->index <= htab->top_index)
+     {
+@@ -10723,6 +10797,9 @@ ppc64_elf_size_stubs (struct bfd_link_in
+   bfd_boolean stubs_always_before_branch;
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   stubs_always_before_branch = group_size < 0;
+   if (group_size < 0)
+     stub_group_size = -group_size;
+@@ -11144,6 +11221,9 @@ ppc64_elf_build_stubs (bfd_boolean emit_
+   bfd_byte *p;
+   int stub_sec_count = 0;
+ 
++  if (htab == NULL)
++    return FALSE;
++
+   htab->emit_stub_syms = emit_stub_syms;
+ 
+   /* Allocate memory to hold the linker stubs.  */
+@@ -11343,7 +11423,9 @@ void
+ ppc64_elf_restore_symbols (struct bfd_link_info *info)
+ {
+   struct ppc_link_hash_table *htab = ppc_hash_table (info);
+-  elf_link_hash_traverse (&htab->elf, undo_symbol_twiddle, info);
++
++  if (htab != NULL)
++    elf_link_hash_traverse (&htab->elf, undo_symbol_twiddle, info);
+ }
+ 
+ /* What to do when ld finds relocations against symbols defined in
+@@ -11482,6 +11564,8 @@ ppc64_elf_relocate_section (bfd *output_
+     ppc_howto_init ();
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Don't relocate stub sections.  */
+   if (input_section->owner == htab->stub_bfd)
+@@ -13224,6 +13308,8 @@ ppc64_elf_finish_dynamic_symbol (bfd *ou
+   bfd_byte *loc;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   for (ent = h->plt.plist; ent != NULL; ent = ent->next)
+     if (ent->plt.offset != (bfd_vma) -1)
+@@ -13326,6 +13412,9 @@ ppc64_elf_finish_dynamic_sections (bfd *
+   asection *sdyn;
+ 
+   htab = ppc_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+ 
+Only in b/bfd: elf64-ppc.c.orig
+Only in b/bfd: elf64-ppc.c.rej
+diff -rup a/bfd/elf64-s390.c b/bfd/elf64-s390.c
+--- a/bfd/elf64-s390.c	2011-12-16 00:09:25.697026259 -0700
++++ b/bfd/elf64-s390.c	2011-12-16 00:01:26.806804820 -0700
+@@ -1,6 +1,6 @@
+ /* IBM S/390-specific support for 64-bit ELF
+-   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+-   Free Software Foundation, Inc.
++   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
++   2010  Free Software Foundation, Inc.
+    Contributed Martin Schwidefsky (schwidefsky@de.ibm.com).
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -648,13 +648,13 @@ struct elf_s390_obj_tdata
+ #define is_s390_elf(bfd)				\
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour	\
+    && elf_tdata (bfd) != NULL				\
+-   && elf_object_id (bfd) == S390_ELF_TDATA)
++   && elf_object_id (bfd) == S390_ELF_DATA)
+ 
+ static bfd_boolean
+ elf_s390_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_s390_obj_tdata),
+-				  S390_ELF_TDATA);
++				  S390_ELF_DATA);
+ }
+ 
+ static bfd_boolean
+@@ -692,7 +692,8 @@ struct elf_s390_link_hash_table
+ /* Get the s390 ELF linker hash table from a link_info structure.  */
+ 
+ #define elf_s390_hash_table(p) \
+-  ((struct elf_s390_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == S390_ELF_DATA ? ((struct elf_s390_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ /* Create an entry in an s390 ELF linker hash table.  */
+ 
+@@ -741,7 +742,8 @@ elf_s390_link_hash_table_create (abfd)
+     return NULL;
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd, link_hash_newfunc,
+-				      sizeof (struct elf_s390_link_hash_entry)))
++				      sizeof (struct elf_s390_link_hash_entry),
++				      S390_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -764,9 +766,8 @@ elf_s390_link_hash_table_create (abfd)
+    shortcuts to them in our hash table.  */
+ 
+ static bfd_boolean
+-create_got_section (dynobj, info)
+-     bfd *dynobj;
+-     struct bfd_link_info *info;
++create_got_section (bfd *dynobj,
++		    struct bfd_link_info *info)
+ {
+   struct elf_s390_link_hash_table *htab;
+ 
+@@ -774,6 +775,9 @@ create_got_section (dynobj, info)
+     return FALSE;
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->sgot = bfd_get_section_by_name (dynobj, ".got");
+   htab->sgotplt = bfd_get_section_by_name (dynobj, ".got.plt");
+   htab->srelgot = bfd_get_section_by_name (dynobj, ".rela.got");
+@@ -787,13 +791,15 @@ create_got_section (dynobj, info)
+    hash table.  */
+ 
+ static bfd_boolean
+-elf_s390_create_dynamic_sections (dynobj, info)
+-     bfd *dynobj;
+-     struct bfd_link_info *info;
++elf_s390_create_dynamic_sections (bfd *dynobj,
++				  struct bfd_link_info *info)
+ {
+   struct elf_s390_link_hash_table *htab;
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   if (!htab->sgot && !create_got_section (dynobj, info))
+     return FALSE;
+ 
+@@ -911,11 +917,10 @@ elf_s390_tls_transition (info, r_type, i
+    table.  */
+ 
+ static bfd_boolean
+-elf_s390_check_relocs (abfd, info, sec, relocs)
+-     bfd *abfd;
+-     struct bfd_link_info *info;
+-     asection *sec;
+-     const Elf_Internal_Rela *relocs;
++elf_s390_check_relocs (bfd *abfd,
++		       struct bfd_link_info *info,
++		       asection *sec,
++		       const Elf_Internal_Rela *relocs)
+ {
+   struct elf_s390_link_hash_table *htab;
+   Elf_Internal_Shdr *symtab_hdr;
+@@ -932,6 +937,9 @@ elf_s390_check_relocs (abfd, info, sec,
+   BFD_ASSERT (is_s390_elf (abfd));
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_symtab_hdr (abfd);
+   sym_hashes = elf_sym_hashes (abfd);
+   local_got_refcounts = elf_local_got_refcounts (abfd);
+@@ -1353,6 +1361,7 @@ elf_s390_gc_sweep_hook (bfd *abfd,
+ 			asection *sec,
+ 			const Elf_Internal_Rela *relocs)
+ {
++  struct elf_s390_link_hash_table *htab;
+   Elf_Internal_Shdr *symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes;
+   bfd_signed_vma *local_got_refcounts;
+@@ -1361,6 +1370,10 @@ elf_s390_gc_sweep_hook (bfd *abfd,
+   if (info->relocatable)
+     return TRUE;
+ 
++  htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+   symtab_hdr = &elf_symtab_hdr (abfd);
+@@ -1401,8 +1414,8 @@ elf_s390_gc_sweep_hook (bfd *abfd,
+       switch (r_type)
+ 	{
+ 	case R_390_TLS_LDM64:
+-	  if (elf_s390_hash_table (info)->tls_ldm_got.refcount > 0)
+-	    elf_s390_hash_table (info)->tls_ldm_got.refcount -= 1;
++	  if (htab->tls_ldm_got.refcount > 0)
++	    htab->tls_ldm_got.refcount -= 1;
+ 	  break;
+ 
+ 	case R_390_TLS_GD64:
+@@ -1522,9 +1535,8 @@ elf_s390_adjust_gotplt (h)
+    understand.  */
+ 
+ static bfd_boolean
+-elf_s390_adjust_dynamic_symbol (info, h)
+-     struct bfd_link_info *info;
+-     struct elf_link_hash_entry *h;
++elf_s390_adjust_dynamic_symbol (struct bfd_link_info *info,
++				struct elf_link_hash_entry *h)
+ {
+   struct elf_s390_link_hash_table *htab;
+   asection *s;
+@@ -1636,6 +1648,8 @@ elf_s390_adjust_dynamic_symbol (info, h)
+      same memory location for the variable.  */
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* We must generate a R_390_COPY reloc to tell the dynamic linker to
+      copy the initial value out of the dynamic object and into the
+@@ -1655,9 +1669,8 @@ elf_s390_adjust_dynamic_symbol (info, h)
+    dynamic relocs.  */
+ 
+ static bfd_boolean
+-allocate_dynrelocs (h, inf)
+-     struct elf_link_hash_entry *h;
+-     PTR inf;
++allocate_dynrelocs (struct elf_link_hash_entry *h,
++		    void * inf)
+ {
+   struct bfd_link_info *info;
+   struct elf_s390_link_hash_table *htab;
+@@ -1675,6 +1688,8 @@ allocate_dynrelocs (h, inf)
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (htab->elf.dynamic_sections_created
+       && h->plt.refcount > 0)
+@@ -1916,9 +1931,8 @@ readonly_dynrelocs (h, inf)
+ /* Set the sizes of the dynamic sections.  */
+ 
+ static bfd_boolean
+-elf_s390_size_dynamic_sections (output_bfd, info)
+-     bfd *output_bfd ATTRIBUTE_UNUSED;
+-     struct bfd_link_info *info;
++elf_s390_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
++				struct bfd_link_info *info)
+ {
+   struct elf_s390_link_hash_table *htab;
+   bfd *dynobj;
+@@ -1927,6 +1941,9 @@ elf_s390_size_dynamic_sections (output_b
+   bfd *ibfd;
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   if (dynobj == NULL)
+     abort ();
+@@ -2187,16 +2204,14 @@ invalid_tls_insn (input_bfd, input_secti
+ /* Relocate a 390 ELF section.  */
+ 
+ static bfd_boolean
+-elf_s390_relocate_section (output_bfd, info, input_bfd, input_section,
+-			      contents, relocs, local_syms, local_sections)
+-     bfd *output_bfd;
+-     struct bfd_link_info *info;
+-     bfd *input_bfd;
+-     asection *input_section;
+-     bfd_byte *contents;
+-     Elf_Internal_Rela *relocs;
+-     Elf_Internal_Sym *local_syms;
+-     asection **local_sections;
++elf_s390_relocate_section (bfd *output_bfd,
++			   struct bfd_link_info *info,
++			   bfd *input_bfd,
++			   asection *input_section,
++			   bfd_byte *contents,
++			   Elf_Internal_Rela *relocs,
++			   Elf_Internal_Sym *local_syms,
++			   asection **local_sections)
+ {
+   struct elf_s390_link_hash_table *htab;
+   Elf_Internal_Shdr *symtab_hdr;
+@@ -2208,6 +2223,9 @@ elf_s390_relocate_section (output_bfd, i
+   BFD_ASSERT (is_s390_elf (input_bfd));
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_symtab_hdr (input_bfd);
+   sym_hashes = elf_sym_hashes (input_bfd);
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+@@ -3032,15 +3050,16 @@ elf_s390_relocate_section (output_bfd, i
+    dynamic sections here.  */
+ 
+ static bfd_boolean
+-elf_s390_finish_dynamic_symbol (output_bfd, info, h, sym)
+-     bfd *output_bfd;
+-     struct bfd_link_info *info;
+-     struct elf_link_hash_entry *h;
+-     Elf_Internal_Sym *sym;
++elf_s390_finish_dynamic_symbol (bfd *output_bfd,
++				struct bfd_link_info *info,
++				struct elf_link_hash_entry *h,
++				Elf_Internal_Sym *sym)
+ {
+   struct elf_s390_link_hash_table *htab;
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+     {
+@@ -3227,15 +3246,17 @@ elf_s390_reloc_type_class (rela)
+ /* Finish up the dynamic sections.  */
+ 
+ static bfd_boolean
+-elf_s390_finish_dynamic_sections (output_bfd, info)
+-     bfd *output_bfd;
+-     struct bfd_link_info *info;
++elf_s390_finish_dynamic_sections (bfd *output_bfd,
++				  struct bfd_link_info *info)
+ {
+   struct elf_s390_link_hash_table *htab;
+   bfd *dynobj;
+   asection *sdyn;
+ 
+   htab = elf_s390_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+ 
+Only in b/bfd: elf64-s390.c.orig
+diff -rup a/bfd/elf64-sh64.c b/bfd/elf64-sh64.c
+--- a/bfd/elf64-sh64.c	2011-12-16 00:09:25.698026259 -0700
++++ b/bfd/elf64-sh64.c	2011-12-16 00:01:26.808804820 -0700
+@@ -1,6 +1,6 @@
+ /* SuperH SH64-specific support for 64-bit ELF
+-   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+-   Free Software Foundation, Inc.
++   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
++   2010  Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -89,26 +89,14 @@ struct elf_sh64_link_hash_entry
+   struct elf_sh64_pcrel_relocs_copied *pcrel_relocs_copied;
+ };
+ 
+-/* sh ELF linker hash table.  */
+-
+-struct elf_sh64_link_hash_table
+-{
+-  struct elf_link_hash_table root;
+-};
+-
+ /* Traverse an sh ELF linker hash table.  */
+ 
+-#define sh64_elf64_link_hash_traverse(table, func, info)		\
+-  (elf_link_hash_traverse						\
+-   (&(table)->root,							\
++#define sh64_elf64_link_hash_traverse(table, func, info)	\
++  (elf_link_hash_traverse					\
++   ((table),							\
+     (bfd_boolean (*) (struct elf_link_hash_entry *, void *)) (func), \
+     (info)))
+ 
+-/* Get the sh ELF linker hash table from a link_info structure.  */
+-
+-#define sh64_elf64_hash_table(p) \
+-  ((struct elf_sh64_link_hash_table *) ((p)->hash))
+-
+ static bfd_reloc_status_type sh_elf64_ignore_reloc
+   (bfd *, arelent *, asymbol *, void *, asection *, bfd *, char **);
+ static bfd_reloc_status_type sh_elf64_reloc
+@@ -3077,22 +3065,22 @@ sh64_elf64_link_hash_newfunc (struct bfd
+ static struct bfd_link_hash_table *
+ sh64_elf64_link_hash_table_create (bfd *abfd)
+ {
+-  struct elf_sh64_link_hash_table *ret;
++  struct elf_link_hash_table *ret;
+ 
+-  ret = ((struct elf_sh64_link_hash_table *)
+-	 bfd_malloc (sizeof (struct elf_sh64_link_hash_table)));
+-  if (ret == (struct elf_sh64_link_hash_table *) NULL)
++  ret = (struct elf_link_hash_table *) bfd_malloc (sizeof (* ret));
++  if (ret == (struct elf_link_hash_table *) NULL)
+     return NULL;
+ 
+-  if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
++  if (!_bfd_elf_link_hash_table_init (ret, abfd,
+ 				      sh64_elf64_link_hash_newfunc,
+-				      sizeof (struct elf_sh64_link_hash_entry)))
++				      sizeof (struct elf_sh64_link_hash_entry),
++				      GENERIC_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+     }
+ 
+-  return &ret->root.root;
++  return &ret->root;
+ }
+ 
+ inline static void
+@@ -3490,7 +3478,7 @@ sh64_elf64_size_dynamic_sections (bfd *o
+      We allocated space for them in the check_relocs routine, but we
+      will not fill them in in the relocate_section routine.  */
+   if (info->shared && info->symbolic)
+-    sh64_elf64_link_hash_traverse (sh64_elf64_hash_table (info),
++    sh64_elf64_link_hash_traverse (elf_hash_table (info),
+ 				   sh64_elf64_discard_copies, NULL);
+ 
+   /* The check_relocs and adjust_dynamic_symbol entry points have
+Only in b/bfd: elf64-sh64.c.orig
+diff -rup a/bfd/elf64-x86-64.c b/bfd/elf64-x86-64.c
+--- a/bfd/elf64-x86-64.c	2011-12-16 00:09:25.542026187 -0700
++++ b/bfd/elf64-x86-64.c	2011-12-16 00:08:08.655991049 -0700
+@@ -1,6 +1,6 @@
+ /* X86-64 specific support for 64-bit ELF
+-   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+-   Free Software Foundation, Inc.
++   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
++   2010  Free Software Foundation, Inc.
+    Contributed by Jan Hubicka <jh@suse.cz>.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -451,13 +451,13 @@ struct elf64_x86_64_obj_tdata
+ #define is_x86_64_elf(bfd)				\
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour	\
+    && elf_tdata (bfd) != NULL				\
+-   && elf_object_id (bfd) == X86_64_ELF_TDATA)
++   && elf_object_id (bfd) == X86_64_ELF_DATA)
+ 
+ static bfd_boolean
+ elf64_x86_64_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf64_x86_64_obj_tdata),
+-				  X86_64_ELF_TDATA);
++				  X86_64_ELF_DATA);
+ }
+ 
+ /* x86-64 ELF linker hash table.  */
+@@ -470,16 +470,8 @@ struct elf64_x86_64_link_hash_table
+   asection *sdynbss;
+   asection *srelbss;
+ 
+-  /* The offset into splt of the PLT entry for the TLS descriptor
+-     resolver.  Special values are 0, if not necessary (or not found
+-     to be necessary yet), and -1 if needed but not determined
+-     yet.  */
+-  bfd_vma tlsdesc_plt;
+-  /* The offset into sgot of the GOT entry used by the PLT entry
+-     above.  */
+-  bfd_vma tlsdesc_got;
+-
+-  union {
++  union
++  {
+     bfd_signed_vma refcount;
+     bfd_vma offset;
+   } tls_ld_got;
+@@ -499,12 +491,23 @@ struct elf64_x86_64_link_hash_table
+ 
+   asection *sdynsharablebss;
+   asection *srelsharablebss;
++
++  /* The offset into splt of the PLT entry for the TLS descriptor
++     resolver.  Special values are 0, if not necessary (or not found
++     to be necessary yet), and -1 if needed but not determined
++     yet.  */
++  bfd_vma tlsdesc_plt;
++  /* The offset into sgot of the GOT entry used by the PLT entry
++     above.  */
++  bfd_vma tlsdesc_got;
+ };
+ 
+ /* Get the x86-64 ELF linker hash table from a link_info structure.  */
+ 
+ #define elf64_x86_64_hash_table(p) \
+-  ((struct elf64_x86_64_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++   == X86_64_ELF_DATA ? ((struct elf64_x86_64_link_hash_table *) ((p)->hash)) : NULL)
++
+ 
+ #define elf64_x86_64_compute_jump_table_size(htab) \
+   ((htab)->elf.srelplt->reloc_count * GOT_ENTRY_SIZE)
+@@ -625,7 +628,8 @@ elf64_x86_64_link_hash_table_create (bfd
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd,
+ 				      elf64_x86_64_link_hash_newfunc,
+-				      sizeof (struct elf64_x86_64_link_hash_entry)))
++				      sizeof (struct elf64_x86_64_link_hash_entry),
++				      X86_64_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -684,6 +688,9 @@ elf64_x86_64_create_dynamic_sections (bf
+     return FALSE;
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->sdynbss = bfd_get_section_by_name (dynobj, ".dynbss");
+   if (!info->shared)
+     {
+@@ -1032,12 +1039,19 @@ elf64_x86_64_tls_transition (struct bfd_
+ 	name = h->root.root.string;
+       else
+ 	{
+-	  Elf_Internal_Sym *isym;
+ 	  struct elf64_x86_64_link_hash_table *htab;
++
+ 	  htab = elf64_x86_64_hash_table (info);
+-	  isym = bfd_sym_from_r_symndx (&htab->sym_cache,
+-					abfd, r_symndx);
+-	  name = bfd_elf_sym_name (abfd, symtab_hdr, isym, NULL);
++	  if (htab == NULL)
++	    name = "*unknown*";
++	  else
++	    {
++	      Elf_Internal_Sym *isym;
++
++	      isym = bfd_sym_from_r_symndx (&htab->sym_cache,
++					    abfd, r_symndx);
++	      name = bfd_elf_sym_name (abfd, symtab_hdr, isym, NULL);
++	    }
+ 	}
+ 
+       (*_bfd_error_handler)
+@@ -1075,6 +1089,9 @@ elf64_x86_64_check_relocs (bfd *abfd, st
+   BFD_ASSERT (is_x86_64_elf (abfd));
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_symtab_hdr (abfd);
+   sym_hashes = elf_sym_hashes (abfd);
+ 
+@@ -1609,6 +1626,7 @@ elf64_x86_64_gc_sweep_hook (bfd *abfd, s
+ 			    asection *sec,
+ 			    const Elf_Internal_Rela *relocs)
+ {
++  struct elf64_x86_64_link_hash_table *htab;
+   Elf_Internal_Shdr *symtab_hdr;
+   struct elf_link_hash_entry **sym_hashes;
+   bfd_signed_vma *local_got_refcounts;
+@@ -1617,6 +1635,10 @@ elf64_x86_64_gc_sweep_hook (bfd *abfd, s
+   if (info->relocatable)
+     return TRUE;
+ 
++  htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+   symtab_hdr = &elf_symtab_hdr (abfd);
+@@ -1662,8 +1684,8 @@ elf64_x86_64_gc_sweep_hook (bfd *abfd, s
+       switch (r_type)
+ 	{
+ 	case R_X86_64_TLSLD:
+-	  if (elf64_x86_64_hash_table (info)->tls_ld_got.refcount > 0)
+-	    elf64_x86_64_hash_table (info)->tls_ld_got.refcount -= 1;
++	  if (htab->tls_ld_got.refcount > 0)
++	    htab->tls_ld_got.refcount -= 1;
+ 	  break;
+ 
+ 	case R_X86_64_TLSGD:
+@@ -1849,6 +1871,8 @@ elf64_x86_64_adjust_dynamic_symbol (stru
+      same memory location for the variable.  */
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   s = htab->sdynbss;
+ 
+@@ -1890,6 +1914,8 @@ elf64_x86_64_allocate_dynrelocs (struct
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Since STT_GNU_IFUNC symbol must go through PLT, we handle it
+      here if it is defined and referenced in a non-shared object.  */
+@@ -2180,6 +2206,9 @@ elf64_x86_64_size_dynamic_sections (bfd
+   bfd *ibfd;
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   if (dynobj == NULL)
+     abort ();
+@@ -2476,17 +2505,22 @@ elf64_x86_64_always_size_sections (bfd *
+ 
+       if (tlsbase && tlsbase->type == STT_TLS)
+ 	{
++	  struct elf64_x86_64_link_hash_table *htab;
+ 	  struct bfd_link_hash_entry *bh = NULL;
+ 	  const struct elf_backend_data *bed
+ 	    = get_elf_backend_data (output_bfd);
+ 
++	  htab = elf64_x86_64_hash_table (info);
++	  if (htab == NULL)
++	    return FALSE;
++
+ 	  if (!(_bfd_generic_link_add_one_symbol
+ 		(info, output_bfd, "_TLS_MODULE_BASE_", BSF_LOCAL,
+ 		 tls_sec, 0, NULL, FALSE,
+ 		 bed->collect, &bh)))
+ 	    return FALSE;
+ 
+-	  elf64_x86_64_hash_table (info)->tls_module_base = bh;
++	  htab->tls_module_base = bh;
+ 
+ 	  tlsbase = (struct elf_link_hash_entry *)bh;
+ 	  tlsbase->def_regular = 1;
+@@ -2506,17 +2540,21 @@ elf64_x86_64_always_size_sections (bfd *
+ static void
+ elf64_x86_64_set_tls_module_base (struct bfd_link_info *info)
+ {
++  struct elf64_x86_64_link_hash_table *htab;
+   struct bfd_link_hash_entry *base;
+ 
+   if (!info->executable)
+     return;
+ 
+-  base = elf64_x86_64_hash_table (info)->tls_module_base;
++  htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return;
+ 
+-  if (!base)
++  base = htab->tls_module_base;
++  if (base == NULL)
+     return;
+ 
+-  base->u.def.value = elf_hash_table (info)->tls_size;
++  base->u.def.value = htab->elf.tls_size;
+ }
+ 
+ /* Return the base VMA address which should be subtracted from real addresses
+@@ -2594,6 +2632,8 @@ elf64_x86_64_relocate_section (bfd *outp
+   BFD_ASSERT (is_x86_64_elf (input_bfd));
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+   symtab_hdr = &elf_symtab_hdr (input_bfd);
+   sym_hashes = elf_sym_hashes (input_bfd);
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+@@ -3717,6 +3757,8 @@ elf64_x86_64_finish_dynamic_symbol (bfd
+   struct elf64_x86_64_link_hash_table *htab;
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+     {
+@@ -4002,6 +4044,9 @@ elf64_x86_64_finish_dynamic_sections (bf
+   asection *sdyn;
+ 
+   htab = elf64_x86_64_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   dynobj = htab->elf.dynobj;
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+ 
+Only in b/bfd: elf64-x86-64.c.orig
+Only in b/bfd: elf64-x86-64.c.rej
+diff -rup a/bfd/elflink.c b/bfd/elflink.c
+--- a/bfd/elflink.c	2011-12-16 00:09:25.042025959 -0700
++++ b/bfd/elflink.c	2011-12-16 00:01:26.814804824 -0700
+@@ -6832,7 +6832,8 @@ _bfd_elf_link_hash_table_init
+    struct bfd_hash_entry *(*newfunc) (struct bfd_hash_entry *,
+ 				      struct bfd_hash_table *,
+ 				      const char *),
+-   unsigned int entsize)
++   unsigned int entsize,
++   enum elf_target_id target_id)
+ {
+   bfd_boolean ret;
+   int can_refcount = get_elf_backend_data (abfd)->can_refcount;
+@@ -6846,7 +6847,9 @@ _bfd_elf_link_hash_table_init
+   table->dynsymcount = 1;
+ 
+   ret = _bfd_link_hash_table_init (&table->root, abfd, newfunc, entsize);
++
+   table->root.type = bfd_link_elf_hash_table;
++  table->hash_table_id = target_id;
+ 
+   return ret;
+ }
+@@ -6864,7 +6867,8 @@ _bfd_elf_link_hash_table_create (bfd *ab
+     return NULL;
+ 
+   if (! _bfd_elf_link_hash_table_init (ret, abfd, _bfd_elf_link_hash_newfunc,
+-				       sizeof (struct elf_link_hash_entry)))
++				       sizeof (struct elf_link_hash_entry),
++				       GENERIC_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+Only in b/bfd: elflink.c.orig
+diff -rup a/bfd/elfxx-ia64.c b/bfd/elfxx-ia64.c
+--- a/bfd/elfxx-ia64.c	2011-12-16 00:09:25.699026259 -0700
++++ b/bfd/elfxx-ia64.c	2011-12-16 00:01:26.816804824 -0700
+@@ -1,6 +1,6 @@
+ /* IA-64 support for 64-bit ELF
+    Copyright 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
+-   2008, 2009  Free Software Foundation, Inc.
++   2008, 2009, 2010  Free Software Foundation, Inc.
+    Contributed by David Mosberger-Tang <davidm@hpl.hp.com>
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+@@ -70,7 +70,7 @@
+ #define NELEMS(a)	((int) (sizeof (a) / sizeof ((a)[0])))
+ 
+ typedef struct bfd_hash_entry *(*new_hash_entry_func)
+-  PARAMS ((struct bfd_hash_entry *, struct bfd_hash_table *, const char *));
++  (struct bfd_hash_entry *, struct bfd_hash_table *, const char *);
+ 
+ /* In dynamically (linker-) created sections, we generally need to keep track
+    of the place a symbol or expression got allocated to. This is done via hash
+@@ -185,7 +185,8 @@ struct elfNN_ia64_allocate_data
+ };
+ 
+ #define elfNN_ia64_hash_table(p) \
+-  ((struct elfNN_ia64_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == IA64_ELF_DATA ? ((struct elfNN_ia64_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ static struct elfNN_ia64_dyn_sym_info * get_dyn_sym_info
+   (struct elfNN_ia64_link_hash_table *ia64_info,
+@@ -799,16 +800,19 @@ elfNN_ia64_relax_section (bfd *abfd, ase
+       || (link_info->relax_pass == 1 && sec->skip_relax_pass_1))
+     return TRUE;
+ 
++  ia64_info = elfNN_ia64_hash_table (link_info);
++  if (ia64_info == NULL)
++    return FALSE;
++
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+ 
+   /* Load the relocations for this section.  */
+   internal_relocs = (_bfd_elf_link_read_relocs
+-		     (abfd, sec, (PTR) NULL, (Elf_Internal_Rela *) NULL,
++		     (abfd, sec, NULL, (Elf_Internal_Rela *) NULL,
+ 		      link_info->keep_memory));
+   if (internal_relocs == NULL)
+     return FALSE;
+ 
+-  ia64_info = elfNN_ia64_hash_table (link_info);
+   irelend = internal_relocs + sec->reloc_count;
+ 
+   /* Get the section contents.  */
+@@ -1830,21 +1834,22 @@ elfNN_ia64_local_htab_eq (const void *pt
+    derived hash table to keep information specific to the IA-64 ElF
+    linker (without using static variables).  */
+ 
+-static struct bfd_link_hash_table*
++static struct bfd_link_hash_table *
+ elfNN_ia64_hash_table_create (bfd *abfd)
+ {
+   struct elfNN_ia64_link_hash_table *ret;
+ 
+   ret = bfd_zmalloc ((bfd_size_type) sizeof (*ret));
+   if (!ret)
+-    return 0;
++    return NULL;
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      elfNN_ia64_new_elf_hash_entry,
+-				      sizeof (struct elfNN_ia64_link_hash_entry)))
++				      sizeof (struct elfNN_ia64_link_hash_entry),
++				      IA64_ELF_DATA))
+     {
+       free (ret);
+-      return 0;
++      return NULL;
+     }
+ 
+   ret->loc_hash_table = htab_try_create (1024, elfNN_ia64_local_htab_hash,
+@@ -1853,7 +1858,7 @@ elfNN_ia64_hash_table_create (bfd *abfd)
+   if (!ret->loc_hash_table || !ret->loc_hash_memory)
+     {
+       free (ret);
+-      return 0;
++      return NULL;
+     }
+ 
+   return &ret->root.root;
+@@ -1999,6 +2004,8 @@ elfNN_ia64_create_dynamic_sections (bfd
+     return FALSE;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
+ 
+   {
+     flagword flags = bfd_get_section_flags (abfd, ia64_info->root.sgot);
+@@ -2626,6 +2633,8 @@ elfNN_ia64_check_relocs (bfd *abfd, stru
+ 
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
+ 
+   got = fptr = srel = pltoff = NULL;
+ 
+@@ -3053,7 +3062,7 @@ elfNN_ia64_check_relocs (bfd *abfd, stru
+ 
+ static bfd_boolean
+ allocate_global_data_got (struct elfNN_ia64_dyn_sym_info *dyn_i,
+-			  PTR data)
++			  void * data)
+ {
+   struct elfNN_ia64_allocate_data *x = (struct elfNN_ia64_allocate_data *)data;
+ 
+@@ -3081,6 +3090,9 @@ allocate_global_data_got (struct elfNN_i
+ 	  struct elfNN_ia64_link_hash_table *ia64_info;
+ 
+ 	  ia64_info = elfNN_ia64_hash_table (x->info);
++	  if (ia64_info == NULL)
++	    return FALSE;
++
+ 	  if (ia64_info->self_dtpmod_offset == (bfd_vma) -1)
+ 	    {
+ 	      ia64_info->self_dtpmod_offset = x->ofs;
+@@ -3101,7 +3113,7 @@ allocate_global_data_got (struct elfNN_i
+ 
+ static bfd_boolean
+ allocate_global_fptr_got (struct elfNN_ia64_dyn_sym_info *dyn_i,
+-			  PTR data)
++			  void * data)
+ {
+   struct elfNN_ia64_allocate_data *x = (struct elfNN_ia64_allocate_data *)data;
+ 
+@@ -3290,6 +3302,8 @@ allocate_dynrel_entries (struct elfNN_ia
+   bfd_boolean dynamic_symbol, shared, resolved_zero;
+ 
+   ia64_info = elfNN_ia64_hash_table (x->info);
++  if (ia64_info == NULL)
++    return FALSE;
+ 
+   /* Note that this can't be used in relation to FPTR relocs below.  */
+   dynamic_symbol = elfNN_ia64_dynamic_symbol_p (dyn_i->h, x->info, 0);
+@@ -3437,6 +3451,8 @@ elfNN_ia64_size_dynamic_sections (bfd *o
+ 
+   dynobj = elf_hash_table(info)->dynobj;
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
+   ia64_info->self_dtpmod_offset = (bfd_vma) -1;
+   BFD_ASSERT(dynobj != NULL);
+   data.info = info;
+@@ -3942,6 +3958,9 @@ set_got_entry (bfd *abfd, struct bfd_lin
+   bfd_vma got_offset;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return 0;
++
+   got_sec = ia64_info->root.sgot;
+ 
+   switch (dyn_r_type)
+@@ -4079,6 +4098,9 @@ set_fptr_entry (bfd *abfd, struct bfd_li
+   asection *fptr_sec;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return 0;
++
+   fptr_sec = ia64_info->fptr_sec;
+ 
+   if (!dyn_i->fptr_done)
+@@ -4129,6 +4151,9 @@ set_pltoff_entry (bfd *abfd, struct bfd_
+   asection *pltoff_sec;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return 0;
++
+   pltoff_sec = ia64_info->pltoff_sec;
+ 
+   /* Don't do anything if this symbol uses a real PLT entry.  In
+@@ -4229,6 +4254,8 @@ elfNN_ia64_choose_gp (bfd *abfd, struct
+   struct elfNN_ia64_link_hash_table *ia64_info;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
+ 
+   /* Find the min and max vma of all sections marked short.  Also collect
+      min and max vma of any type, for use in selecting a nice gp.  */
+@@ -4341,6 +4368,8 @@ elfNN_ia64_final_link (bfd *abfd, struct
+   asection *unwind_output_sec;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
+ 
+   /* Make sure we've got ourselves a nice fat __gp value.  */
+   if (!info->relocatable)
+@@ -4423,6 +4452,8 @@ elfNN_ia64_relocate_section (bfd *output
+ 
+   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
+ 
+   /* Infect various flags from the input section to the output section.  */
+   if (info->relocatable)
+@@ -5144,6 +5175,9 @@ elfNN_ia64_finish_dynamic_symbol (bfd *o
+   struct elfNN_ia64_dyn_sym_info *dyn_i;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
++
+   dyn_i = get_dyn_sym_info (ia64_info, h, NULL, NULL, FALSE);
+ 
+   /* Fill in the PLT data, if required.  */
+@@ -5230,6 +5264,9 @@ elfNN_ia64_finish_dynamic_sections (bfd
+   bfd *dynobj;
+ 
+   ia64_info = elfNN_ia64_hash_table (info);
++  if (ia64_info == NULL)
++    return FALSE;
++
+   dynobj = ia64_info->root.dynobj;
+ 
+   if (elf_hash_table (info)->dynamic_sections_created)
+Only in b/bfd: elfxx-ia64.c.orig
+Only in b/bfd: elfxx-ia64.c.rej
+diff -rup a/bfd/elfxx-mips.c b/bfd/elfxx-mips.c
+--- a/bfd/elfxx-mips.c	2011-12-16 00:09:25.702026260 -0700
++++ b/bfd/elfxx-mips.c	2011-12-16 00:01:26.820804827 -0700
+@@ -1,6 +1,6 @@
+ /* MIPS-specific support for ELF
+    Copyright 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
+-   2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+ 
+    Most of the information added by Ian Lance Taylor, Cygnus Support,
+    <ian@cygnus.com>.
+@@ -246,7 +246,7 @@ struct _mips_elf_section_data
+ #define is_mips_elf(bfd)				\
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour	\
+    && elf_tdata (bfd) != NULL				\
+-   && elf_object_id (bfd) == MIPS_ELF_TDATA)
++   && elf_object_id (bfd) == MIPS_ELF_DATA)
+ 
+ /* The ABI says that every symbol used by dynamic relocations must have
+    a global GOT entry.  Among other things, this provides the dynamic
+@@ -484,8 +484,15 @@ struct mips_elf_link_hash_table
+   asection *(*add_stub_section) (const char *, asection *, asection *);
+ };
+ 
++/* Get the MIPS ELF linker hash table from a link_info structure.  */
++
++#define mips_elf_hash_table(p) \
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == MIPS_ELF_DATA ? ((struct mips_elf_link_hash_table *) ((p)->hash)) : NULL)
++
+ /* A structure used to communicate with htab_traverse callbacks.  */
+-struct mips_htab_traverse_info {
++struct mips_htab_traverse_info
++{
+   /* The usual link-wide information.  */
+   struct bfd_link_info *info;
+   bfd *output_bfd;
+@@ -1001,11 +1008,6 @@ static const bfd_vma mips_vxworks_shared
+     (bfd_boolean (*) (struct elf_link_hash_entry *, void *)) (func),	\
+     (info)))
+ 
+-/* Get the MIPS ELF linker hash table from a link_info structure.  */
+-
+-#define mips_elf_hash_table(p) \
+-  ((struct mips_elf_link_hash_table *) ((p)->hash))
+-
+ /* Find the base offsets for thread-local storage in this object,
+    for GD/LD and IE/LE respectively.  */
+ 
+@@ -1543,6 +1545,9 @@ _bfd_mips_elf_init_stubs (struct bfd_lin
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   htab->add_stub_section = fn;
+   htab->la25_stubs = htab_try_create (1, mips_elf_la25_stub_hash,
+ 				      mips_elf_la25_stub_eq, NULL);
+@@ -1583,6 +1588,8 @@ mips_elf_add_la25_intro (struct mips_elf
+   unsigned int align;
+ 
+   htab = mips_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Create a unique name for the new section.  */
+   name = bfd_malloc (11 + sizeof (".text.stub."));
+@@ -1626,6 +1633,8 @@ mips_elf_add_la25_trampoline (struct mip
+   asection *s;
+ 
+   htab = mips_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
+ 
+   /* Create a trampoline section, if we haven't already.  */
+   s = htab->strampoline;
+@@ -1676,6 +1685,9 @@ mips_elf_add_la25_stub (struct bfd_link_
+ 
+   /* See if we've already created an equivalent stub.  */
+   htab = mips_elf_hash_table (info);
++  if (htab == NULL)
++    return FALSE;
++
+   slot = htab_find_slot (htab->la25_stubs, &search, INSERT);
+   if (slot == NULL)
+     return FALSE;
+@@ -2842,6 +2854,9 @@ mips_elf_initialize_tls_slots (bfd *abfd
+   bfd_boolean need_relocs = FALSE;
+ 
+   htab = mips_elf_hash_table (info);
++  if (htab == NULL)
++    return;
++
+   sgot = htab->sgot;
+ 
+   indx = 0;
+@@ -3001,6 +3016,8 @@ mips_elf_gotplt_index (struct bfd_link_i
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   BFD_ASSERT (h->plt.offset != (bfd_vma) -1);
+ 
+   /* This function only works for VxWorks, because a non-VxWorks .got.plt
+@@ -3037,6 +3054,8 @@ mips_elf_local_got_index (bfd *abfd, bfd
+   struct mips_got_entry *entry;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   entry = mips_elf_create_local_got_entry (abfd, info, ibfd, value,
+ 					   r_symndx, h, r_type);
+   if (!entry)
+@@ -3069,6 +3088,8 @@ mips_elf_global_got_index (bfd *abfd, bf
+   long global_got_dynindx = 0;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   gg = g = htab->got_info;
+   if (g->bfd2got && ibfd)
+     {
+@@ -3208,6 +3229,8 @@ mips_elf_got_offset_from_index (struct b
+   bfd_vma gp;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   sgot = htab->sgot;
+   gp = _bfd_get_gp_value (output_bfd)
+     + mips_elf_adjust_gp (output_bfd, htab->got_info, input_bfd);
+@@ -3232,6 +3255,7 @@ mips_elf_create_local_got_entry (bfd *ab
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   entry.abfd = NULL;
+   entry.symndx = -1;
+@@ -3367,6 +3391,8 @@ mips_elf_sort_hash_table (bfd *abfd, str
+     return TRUE;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   g = htab->got_info;
+   if (g == NULL)
+     return TRUE;
+@@ -3453,6 +3479,8 @@ mips_elf_record_global_got_symbol (struc
+   struct mips_got_info *g;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   hmips = (struct mips_elf_link_hash_entry *) h;
+ 
+   /* A global symbol in the GOT must also be in the dynamic symbol
+@@ -3519,6 +3547,8 @@ mips_elf_record_local_got_symbol (bfd *a
+   struct mips_got_entry entry, **loc;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   g = htab->got_info;
+   BFD_ASSERT (g != NULL);
+ 
+@@ -3601,6 +3631,8 @@ mips_elf_record_got_page_entry (struct b
+   void **loc;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   g = htab->got_info;
+   BFD_ASSERT (g != NULL);
+ 
+@@ -3692,6 +3724,8 @@ mips_elf_allocate_dynamic_relocations (b
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   s = mips_elf_rel_dyn_section (info, FALSE);
+   BFD_ASSERT (s != NULL);
+ 
+@@ -4231,6 +4265,8 @@ mips_elf_forbid_lazy_stubs (void **entry
+   entry = (struct mips_got_entry *) *entryp;
+   info = (struct bfd_link_info *) data;
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (entry->abfd != NULL
+       && entry->symndx == -1
+       && entry->d.h->needs_lazy_stub)
+@@ -4278,6 +4314,8 @@ mips_elf_multi_got (bfd *abfd, struct bf
+ 
+   dynobj = elf_hash_table (info)->dynobj;
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   g = htab->got_info;
+   g->bfd2got = htab_try_create (1, mips_elf_bfd2got_entry_hash,
+ 				mips_elf_bfd2got_entry_eq, NULL);
+@@ -4652,6 +4690,7 @@ mips_elf_create_got_section (bfd *abfd,
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* This function may be called more than once.  */
+   if (htab->sgot)
+@@ -4832,6 +4871,7 @@ mips_elf_calculate_relocation (bfd *abfd
+ 
+   dynobj = elf_hash_table (info)->dynobj;
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* Parse the relocation.  */
+   r_symndx = ELF_R_SYM (input_bfd, relocation->r_info);
+@@ -5655,6 +5695,8 @@ mips_elf_create_dynamic_relocation (bfd
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   r_type = ELF_R_TYPE (output_bfd, rel->r_info);
+   dynobj = elf_hash_table (info)->dynobj;
+   sreloc = mips_elf_rel_dyn_section (info, FALSE);
+@@ -6844,6 +6886,8 @@ _bfd_mips_elf_create_dynamic_sections (b
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   flags = (SEC_ALLOC | SEC_LOAD | SEC_HAS_CONTENTS | SEC_IN_MEMORY
+ 	   | SEC_LINKER_CREATED | SEC_READONLY);
+ 
+@@ -7180,6 +7224,8 @@ _bfd_mips_elf_check_relocs (bfd *abfd, s
+     return TRUE;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   dynobj = elf_hash_table (info)->dynobj;
+   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
+   sym_hashes = elf_sym_hashes (abfd);
+@@ -8053,6 +8099,8 @@ allocate_dynrelocs (struct elf_link_hash
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   dynobj = elf_hash_table (info)->dynobj;
+   hmips = (struct mips_elf_link_hash_entry *) h;
+ 
+@@ -8129,6 +8177,8 @@ _bfd_mips_elf_adjust_dynamic_symbol (str
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   dynobj = elf_hash_table (info)->dynobj;
+   hmips = (struct mips_elf_link_hash_entry *) h;
+ 
+@@ -8323,6 +8373,7 @@ _bfd_mips_elf_always_size_sections (bfd
+   struct mips_htab_traverse_info hti;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* The .reginfo section has a fixed size.  */
+   ri = bfd_get_section_by_name (output_bfd, ".reginfo");
+@@ -8355,6 +8406,8 @@ mips_elf_lay_out_got (bfd *output_bfd, s
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   s = htab->sgot;
+   if (s == NULL)
+     return TRUE;
+@@ -8480,6 +8533,8 @@ mips_elf_estimate_stub_size (bfd *output
+   bfd_size_type dynsymcount;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (htab->lazy_stub_count == 0)
+     return;
+ 
+@@ -8531,12 +8586,13 @@ mips_elf_lay_out_lazy_stubs (struct bfd_
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (htab->lazy_stub_count == 0)
+     return;
+ 
+   htab->sstubs->size = 0;
+-  mips_elf_link_hash_traverse (mips_elf_hash_table (info),
+-			       mips_elf_allocate_lazy_stub, htab);
++  mips_elf_link_hash_traverse (htab, mips_elf_allocate_lazy_stub, htab);
+   htab->sstubs->size += htab->function_stub_size;
+   BFD_ASSERT (htab->sstubs->size
+ 	      == htab->lazy_stub_count * htab->function_stub_size);
+@@ -8554,6 +8610,7 @@ _bfd_mips_elf_size_dynamic_sections (bfd
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   dynobj = elf_hash_table (info)->dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -9108,6 +9165,7 @@ _bfd_mips_elf_relocate_section (bfd *out
+ 	      struct mips_elf_link_hash_table *htab;
+ 
+ 	      htab = mips_elf_hash_table (info);
++	      BFD_ASSERT (htab != NULL);
+ 	      BFD_ASSERT (name != NULL);
+ 	      if (!htab->small_data_overflow_reported
+ 		  && (howto->type == R_MIPS_GPREL16
+@@ -9214,6 +9272,7 @@ mips_elf_create_la25_stub (void **slot,
+   stub = (struct mips_elf_la25_stub *) *slot;
+   hti = (struct mips_htab_traverse_info *) data;
+   htab = mips_elf_hash_table (hti->info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* Create the section contents, if we haven't already.  */
+   s = stub->stub_section;
+@@ -9328,6 +9387,7 @@ _bfd_mips_elf_finish_dynamic_symbol (bfd
+   struct mips_elf_link_hash_entry *hmips;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   dynobj = elf_hash_table (info)->dynobj;
+   hmips = (struct mips_elf_link_hash_entry *) h;
+ 
+@@ -9667,6 +9727,7 @@ _bfd_mips_vxworks_finish_dynamic_symbol
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   dynobj = elf_hash_table (info)->dynobj;
+ 
+   if (h->plt.offset != (bfd_vma) -1)
+@@ -9834,6 +9895,8 @@ mips_finish_exec_plt (bfd *output_bfd, s
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (ABI_64_P (output_bfd))
+     plt_entry = mips_n64_exec_plt0_entry;
+   else if (ABI_N32_P (output_bfd))
+@@ -9877,6 +9940,8 @@ mips_vxworks_finish_exec_plt (bfd *outpu
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   plt_entry = mips_vxworks_exec_plt0_entry;
+ 
+   /* Calculate the value of _GLOBAL_OFFSET_TABLE_.  */
+@@ -9947,6 +10012,7 @@ mips_vxworks_finish_shared_plt (bfd *out
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* We just need to copy the entry byte-by-byte.  */
+   for (i = 0; i < ARRAY_SIZE (mips_vxworks_shared_plt0_entry); i++)
+@@ -9967,6 +10033,8 @@ _bfd_mips_elf_finish_dynamic_sections (b
+   struct mips_elf_link_hash_table *htab;
+ 
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   dynobj = elf_hash_table (info)->dynobj;
+ 
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+@@ -11431,7 +11499,7 @@ bfd_boolean
+ _bfd_mips_elf_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct elf_obj_tdata),
+-				  MIPS_ELF_TDATA);
++				  MIPS_ELF_DATA);
+ }
+ 
+ /* Create a MIPS ELF linker hash table.  */
+@@ -11448,7 +11516,8 @@ _bfd_mips_elf_link_hash_table_create (bf
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->root, abfd,
+ 				      mips_elf_link_hash_newfunc,
+-				      sizeof (struct mips_elf_link_hash_entry)))
++				      sizeof (struct mips_elf_link_hash_entry),
++				      MIPS_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -11553,6 +11622,8 @@ _bfd_mips_elf_final_link (bfd *abfd, str
+   /* Sort the dynamic symbols so that those with GOT entries come after
+      those without.  */
+   htab = mips_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (!mips_elf_sort_hash_table (abfd, info))
+     return FALSE;
+ 
+@@ -12888,6 +12959,8 @@ _bfd_mips_post_process_headers (bfd *abf
+   if (link_info)
+     {
+       htab = mips_elf_hash_table (link_info);
++      BFD_ASSERT (htab != NULL);
++
+       if (htab->use_plts_and_copy_relocs && !htab->is_vxworks)
+ 	i_ehdrp->e_ident[EI_ABIVERSION] = 1;
+     }
+Only in b/bfd: elfxx-mips.c.orig
+diff -rup a/bfd/elfxx-sparc.c b/bfd/elfxx-sparc.c
+--- a/bfd/elfxx-sparc.c	2011-12-16 00:09:25.703026262 -0700
++++ b/bfd/elfxx-sparc.c	2011-12-16 00:01:26.822804827 -0700
+@@ -1,5 +1,5 @@
+ /* SPARC-specific support for ELF
+-   Copyright 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
++   Copyright 2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -523,13 +523,13 @@ struct _bfd_sparc_elf_obj_tdata
+ #define is_sparc_elf(bfd)				\
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour	\
+    && elf_tdata (bfd) != NULL				\
+-   && elf_object_id (bfd) == SPARC_ELF_TDATA)
++   && elf_object_id (bfd) == SPARC_ELF_DATA)
+ 
+ bfd_boolean
+ _bfd_sparc_elf_mkobject (bfd *abfd)
+ {
+   return bfd_elf_allocate_object (abfd, sizeof (struct _bfd_sparc_elf_obj_tdata),
+-				  SPARC_ELF_TDATA);
++				  SPARC_ELF_DATA);
+ }
+ 
+ static void
+@@ -875,7 +875,8 @@ _bfd_sparc_elf_link_hash_table_create (b
+     }
+ 
+   if (!_bfd_elf_link_hash_table_init (&ret->elf, abfd, link_hash_newfunc,
+-				      sizeof (struct _bfd_sparc_elf_link_hash_entry)))
++				      sizeof (struct _bfd_sparc_elf_link_hash_entry),
++				      SPARC_ELF_DATA))
+     {
+       free (ret);
+       return NULL;
+@@ -896,6 +897,8 @@ create_got_section (bfd *dynobj, struct
+     return FALSE;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   htab->sgot = bfd_get_section_by_name (dynobj, ".got");
+   BFD_ASSERT (htab->sgot != NULL);
+ 
+@@ -926,6 +929,8 @@ _bfd_sparc_elf_create_dynamic_sections (
+   struct _bfd_sparc_elf_link_hash_table *htab;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (!htab->sgot && !create_got_section (dynobj, info))
+     return FALSE;
+ 
+@@ -1093,6 +1098,7 @@ _bfd_sparc_elf_check_relocs (bfd *abfd,
+     return TRUE;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   symtab_hdr = &elf_symtab_hdr (abfd);
+   sym_hashes = elf_sym_hashes (abfd);
+   local_got_offsets = elf_local_got_offsets (abfd);
+@@ -1565,6 +1571,7 @@ _bfd_sparc_elf_gc_sweep_hook (bfd *abfd,
+   elf_section_data (sec)->local_dynrel = NULL;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   symtab_hdr = &elf_symtab_hdr (abfd);
+   sym_hashes = elf_sym_hashes (abfd);
+   local_got_refcounts = elf_local_got_refcounts (abfd);
+@@ -1710,6 +1717,7 @@ _bfd_sparc_elf_adjust_dynamic_symbol (st
+   asection *s;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* Make sure we know what is going on here.  */
+   BFD_ASSERT (htab->elf.dynobj != NULL
+@@ -1851,6 +1859,7 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   info = (struct bfd_link_info *) inf;
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   if (htab->elf.dynamic_sections_created
+       && h->plt.refcount > 0)
+@@ -2144,6 +2153,7 @@ _bfd_sparc_elf_size_dynamic_sections (bf
+   bfd *ibfd;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   dynobj = htab->elf.dynobj;
+   BFD_ASSERT (dynobj != NULL);
+ 
+@@ -2511,6 +2521,7 @@ _bfd_sparc_elf_relocate_section (bfd *ou
+   bfd_boolean is_vxworks_tls;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   symtab_hdr = &elf_symtab_hdr (input_bfd);
+   sym_hashes = elf_sym_hashes (input_bfd);
+   local_got_offsets = elf_local_got_offsets (input_bfd);
+@@ -3598,6 +3609,8 @@ sparc_vxworks_build_plt_entry (bfd *outp
+   Elf_Internal_Rela rela;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   if (info->shared)
+     {
+       plt_entry = sparc_vxworks_shared_plt_entry;
+@@ -3686,6 +3699,7 @@ _bfd_sparc_elf_finish_dynamic_symbol (bf
+   const struct elf_backend_data *bed;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   dynobj = htab->elf.dynobj;
+   bed = get_elf_backend_data (output_bfd);
+ 
+@@ -3864,6 +3878,7 @@ sparc_finish_dyn (bfd *output_bfd, struc
+   bfd_boolean abi_64_p;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   bed = get_elf_backend_data (output_bfd);
+   dynsize = bed->s->sizeof_dyn;
+   dynconend = sdyn->contents + sdyn->size;
+@@ -3955,6 +3970,7 @@ sparc_vxworks_finish_exec_plt (bfd *outp
+   bfd_byte *loc;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+ 
+   /* Calculate the absolute value of _GLOBAL_OFFSET_TABLE_.  */
+   got_base = (htab->elf.hgot->root.u.def.section->output_section->vma
+@@ -4030,6 +4046,8 @@ sparc_vxworks_finish_shared_plt (bfd *ou
+   unsigned int i;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
++
+   for (i = 0; i < ARRAY_SIZE (sparc_vxworks_shared_plt0_entry); i++)
+     bfd_put_32 (output_bfd, sparc_vxworks_shared_plt0_entry[i],
+ 		htab->splt->contents + i * 4);
+@@ -4043,6 +4061,7 @@ _bfd_sparc_elf_finish_dynamic_sections (
+   struct _bfd_sparc_elf_link_hash_table *htab;
+ 
+   htab = _bfd_sparc_elf_hash_table (info);
++  BFD_ASSERT (htab != NULL);
+   dynobj = htab->elf.dynobj;
+ 
+   sdyn = bfd_get_section_by_name (dynobj, ".dynamic");
+Only in b/bfd: elfxx-sparc.c.orig
+diff -rup a/bfd/elfxx-sparc.h b/bfd/elfxx-sparc.h
+--- a/bfd/elfxx-sparc.h	2009-09-08 11:11:52.000000000 -0600
++++ b/bfd/elfxx-sparc.h	2011-12-16 00:01:26.823804828 -0700
+@@ -1,5 +1,5 @@
+ /* SPARC ELF specific backend routines.
+-   Copyright 2005, 2006, 2007, 2009 Free Software Foundation, Inc.
++   Copyright 2005, 2006, 2007, 2009, 2010 Free Software Foundation, Inc.
+ 
+    This file is part of BFD, the Binary File Descriptor library.
+ 
+@@ -54,7 +54,8 @@ struct _bfd_sparc_elf_link_hash_table
+   asection *sdynbss;
+   asection *srelbss;
+ 
+-  union {
++  union
++  {
+     bfd_signed_vma refcount;
+     bfd_vma offset;
+   } tls_ldm_got;
+@@ -93,7 +94,8 @@ struct _bfd_sparc_elf_link_hash_table
+ /* Get the SPARC ELF linker hash table from a link_info structure.  */
+ 
+ #define _bfd_sparc_elf_hash_table(p) \
+-  ((struct _bfd_sparc_elf_link_hash_table *) ((p)->hash))
++  (elf_hash_table_id ((struct elf_link_hash_table *) ((p)->hash)) \
++  == SPARC_ELF_DATA ? ((struct _bfd_sparc_elf_link_hash_table *) ((p)->hash)) : NULL)
+ 
+ extern reloc_howto_type *_bfd_sparc_elf_reloc_type_lookup
+   (bfd *, bfd_reloc_code_real_type);
+diff -rup a/bfd/version.h b/bfd/version.h
+--- a/bfd/version.h	2009-10-09 16:25:40.000000000 -0600
++++ b/bfd/version.h	2011-12-16 00:02:06.299823319 -0700
+@@ -1,4 +1,4 @@
+-#define BFD_VERSION_DATE 20091009
++#define BFD_VERSION_DATE 20100205
+ #define BFD_VERSION @bfd_version@
+ #define BFD_VERSION_STRING  @bfd_version_package@ @bfd_version_string@
+ #define REPORT_BUGS_TO @report_bugs_to@
+Only in b/bfd: version.h.orig
+Only in b/ld: ChangeLog.orig
+diff -rup a/ld/emultempl/alphaelf.em b/ld/emultempl/alphaelf.em
+--- a/ld/emultempl/alphaelf.em	2009-10-09 16:25:27.000000000 -0600
++++ b/ld/emultempl/alphaelf.em	2011-12-16 00:01:26.825804830 -0700
+@@ -42,7 +42,7 @@ static void
+ alpha_after_open (void)
+ {
+   if (bfd_get_flavour (link_info.output_bfd) == bfd_target_elf_flavour
+-      && elf_object_id (link_info.output_bfd) == ALPHA_ELF_TDATA)
++      && elf_object_id (link_info.output_bfd) == ALPHA_ELF_DATA)
+     {
+       unsigned int num_plt;
+       lang_output_section_statement_type *os;
+Only in b/ld/emultempl: alphaelf.em.orig
+diff -rup a/ld/emultempl/hppaelf.em b/ld/emultempl/hppaelf.em
+--- a/ld/emultempl/hppaelf.em	2009-10-09 16:25:27.000000000 -0600
++++ b/ld/emultempl/hppaelf.em	2011-12-16 00:01:26.825804830 -0700
+@@ -70,7 +70,8 @@ static void
+ hppaelf_create_output_section_statements (void)
+ {
+   if (!(bfd_get_flavour (link_info.output_bfd) == bfd_target_elf_flavour
+-	&& elf_object_id (link_info.output_bfd) == HPPA_ELF_TDATA))
++	&& (elf_object_id (link_info.output_bfd) == HPPA32_ELF_DATA
++	    || elf_object_id (link_info.output_bfd) == HPPA64_ELF_DATA)))
+     return;
+ 
+   stub_file = lang_add_input_file ("linker stubs",
+diff -rup a/ld/emultempl/mipself.em b/ld/emultempl/mipself.em
+--- a/ld/emultempl/mipself.em	2009-09-08 11:11:35.000000000 -0600
++++ b/ld/emultempl/mipself.em	2011-12-16 00:01:26.826804830 -0700
+@@ -27,7 +27,7 @@ fragment <<EOF
+ #define is_mips_elf(bfd)				\
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour	\
+    && elf_tdata (bfd) != NULL				\
+-   && elf_object_id (bfd) == MIPS_ELF_TDATA)
++   && elf_object_id (bfd) == MIPS_ELF_DATA)
+ 
+ /* Fake input file for stubs.  */
+ static lang_input_statement_type *stub_file;
+diff -rup a/ld/emultempl/ppc32elf.em b/ld/emultempl/ppc32elf.em
+--- a/ld/emultempl/ppc32elf.em	2009-10-09 16:25:27.000000000 -0600
++++ b/ld/emultempl/ppc32elf.em	2011-12-16 00:01:26.826804830 -0700
+@@ -29,7 +29,7 @@ fragment <<EOF
+ 
+ #define is_ppc_elf(bfd) \
+   (bfd_get_flavour (bfd) == bfd_target_elf_flavour \
+-   && elf_object_id (bfd) == PPC32_ELF_TDATA)
++   && elf_object_id (bfd) == PPC32_ELF_DATA)
+ 
+ /* Whether to run tls optimization.  */
+ static int notlsopt = 0;
+diff -rup a/ld/emultempl/ppc64elf.em b/ld/emultempl/ppc64elf.em
+--- a/ld/emultempl/ppc64elf.em	2011-12-16 00:09:25.501026171 -0700
++++ b/ld/emultempl/ppc64elf.em	2011-12-16 00:01:26.827804830 -0700
+@@ -77,7 +77,7 @@ static void
+ ppc_create_output_section_statements (void)
+ {
+   if (!(bfd_get_flavour (link_info.output_bfd) == bfd_target_elf_flavour
+-	&& elf_object_id (link_info.output_bfd) == PPC64_ELF_TDATA))
++	&& elf_object_id (link_info.output_bfd) == PPC64_ELF_DATA))
+     return;
+ 
+   link_info.wrap_char = '.';
+Only in b/ld/emultempl: ppc64elf.em.orig
+diff -cpN a/ld/testsuite/ld-x86-64/32bit.s b/ld/testsuite/ld-x86-64/32bit.s
+*** a/ld/testsuite/ld-x86-64/32bit.s	1970-01-01 01:00:00.000000000 +0100
+--- b/ld/testsuite/ld-x86-64/32bit.s	2012-01-03 15:23:17.406456080 +0000
+***************
+*** 0 ****
+--- 1,78 ----
++ 
++ 	.section	.rodata.str1.1,"aMS",@progbits,1
++ 
++ .LC0:	.word 1
++ .LC1:	.word 2
++ .LC2:	.word 3
++ .LC3:	.word 4
++ .LC4:	.word 5
++ .LC5:	.word 6
++ .LC6:	.word 7
++ .LC7:	.word 8
++ .LC8:	.word 9
++ .LC9:	.word 10
++ .LC10:	.word 11
++ .LC11:	.word 12
++ .LC12:	.word 13
++ .LC13:	.word 14
++ .LC14:	.word 15
++ .LC15:	.word 16
++ .LC16:	.word 17
++ .LC17:	.word 18
++ .LC18:	.word 19
++ .LC19:	.word 20
++ .LC20:	.word 21
++ .LC21:	.word 22
++ .LC22:	.word 23
++ .LC23:	.word 24
++ .LC24:	.word 25
++ .LC25:	.word 26
++ .LC26:	.word 27
++ .LC27:	.word 28
++ .LC28:	.word 29
++ .LC29:	.word 30
++ .LC30:	.word 31
++ .LC31:	.word 32
++ .LC32:	.word 33
++ .LC33:	.word 34
++ 
++ 	.text
++ 	.p2align 4,,15
++ 	.globl	foo
++ 	.type	foo, @function
++ foo:
++ 
++ 	leal	.LC0@GOTOFF(%ecx), %eax
++ 	leal	.LC1@GOTOFF(%ecx), %eax
++ 	leal	.LC2@GOTOFF(%ecx), %eax
++ 	leal	.LC3@GOTOFF(%ecx), %eax
++ 	leal	.LC4@GOTOFF(%ecx), %eax
++ 	leal	.LC5@GOTOFF(%ecx), %eax
++ 	leal	.LC6@GOTOFF(%ecx), %eax
++ 	leal	.LC7@GOTOFF(%ecx), %eax
++ 	leal	.LC8@GOTOFF(%ecx), %eax
++ 	leal	.LC9@GOTOFF(%ecx), %eax
++ 	leal	.LC10@GOTOFF(%ecx), %eax
++ 	leal	.LC11@GOTOFF(%ecx), %eax
++ 	leal	.LC12@GOTOFF(%ecx), %eax
++ 	leal	.LC13@GOTOFF(%ecx), %eax
++ 	leal	.LC14@GOTOFF(%ecx), %eax
++ 	leal	.LC15@GOTOFF(%ecx), %eax
++ 	leal	.LC16@GOTOFF(%ecx), %eax
++ 	leal	.LC17@GOTOFF(%ecx), %eax
++ 	leal	.LC18@GOTOFF(%ecx), %eax
++ 	leal	.LC19@GOTOFF(%ecx), %eax
++ 	leal	.LC20@GOTOFF(%ecx), %eax
++ 	leal	.LC21@GOTOFF(%ecx), %eax
++ 	leal	.LC22@GOTOFF(%ecx), %eax
++ 	leal	.LC23@GOTOFF(%ecx), %eax
++ 	leal	.LC24@GOTOFF(%ecx), %eax
++ 	leal	.LC25@GOTOFF(%ecx), %eax
++ 	leal	.LC26@GOTOFF(%ecx), %eax
++ 	leal	.LC27@GOTOFF(%ecx), %eax
++ 	leal	.LC28@GOTOFF(%ecx), %eax
++ 	leal	.LC29@GOTOFF(%ecx), %eax
++ 	leal	.LC30@GOTOFF(%ecx), %eax
++ 	leal	.LC31@GOTOFF(%ecx), %eax
++ 	leal	.LC32@GOTOFF(%ecx), %eax
++ 	leal	.LC33@GOTOFF(%ecx), %eax
+diff -cpN ../binutils-2.20.51.0.2/ld/testsuite/ld-x86-64/64bit.s ld/testsuite/ld-x86-64/64bit.s
+*** a/ld/testsuite/ld-x86-64/64bit.s	1970-01-01 01:00:00.000000000 +0100
+--- b/ld/testsuite/ld-x86-64/64bit.s	2012-01-03 15:23:53.215458927 +0000
+***************
+*** 0 ****
+--- 1,4 ----
++ 	.text
++ bar:
++ 	call foo
++ 
+diff -cpN ../binutils-2.20.51.0.2/ld/testsuite/ld-x86-64/incompatible.l ld/testsuite/ld-x86-64/incompatible.l
+*** a/ld/testsuite/ld-x86-64/incompatible.l	1970-01-01 01:00:00.000000000 +0100
+--- b/ld/testsuite/ld-x86-64/incompatible.l	2012-01-03 15:24:14.142460592 +0000
+***************
+*** 0 ****
+--- 1 ----
++ .*wrong format.*
+diff -cpN ../binutils-2.20.51.0.2/ld/testsuite/ld-x86-64/x86-64.exp ld/testsuite/ld-x86-64/x86-64.exp
+*** a/ld/testsuite/ld-x86-64/x86-64.exp	2009-09-08 18:11:37.000000000 +0100
+--- b/ld/testsuite/ld-x86-64/x86-64.exp	2012-01-03 16:01:29.184630152 +0000
+*************** set x86_64tests {
+*** 75,80 ****
+--- 75,84 ----
+      {"TLS IE->LE transition" "-melf_x86_64"
+       "--64" {tlsie1.s}
+       {{objdump -dwr tlsie1.dd}} "tlsie1"}
++ 
++     {"build 32-bit object" "-e 0" "--32" {32bit.s} {{ ld incompatible.l }} "dummy" }
++     {"build 64-bit object" "-e 0" "--64" {64bit.s} {} "dummy" }
++     {"link mixed objects"  "-e 0 tmpdir/32bit.o tmpdir/64bit.o" "" {} { { ld incompatible.l } } "mixed"}
+  }
+  
+  run_ld_link_tests $x86_64tests

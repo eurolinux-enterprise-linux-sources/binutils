@@ -1,0 +1,36 @@
+commit b00548197542a46df0e46d848ac61a00827943ea
+Author: Ulrich Drepper <drepper@gmail.com>
+Date:   Mon Jun 30 06:58:52 2014 -0400
+
+        lexsup.c (parse_args): Check whether provided SONAME is empty
+        string.  If yes, warn and ignore it.  Don't overwrite valid SONAME
+        with empty string.
+
+--- a/ld/lexsup.c	2014-08-12 12:43:28.439552256 -0600
++++ b/ld/lexsup.c	2014-08-12 12:44:51.527366954 -0600
+@@ -1169,7 +1169,11 @@ parse_args (unsigned argc, char **argv)
+ 	  break;
+ 	case 'h':		/* Used on Solaris.  */
+ 	case OPTION_SONAME:
+-	  command_line.soname = optarg;
++	  if (optarg[0] == '\0' && command_line.soname
++	      && command_line.soname[0])
++	    einfo (_("%P: SONAME must not be empty string; keeping previous one\n"));
++	  else
++	    command_line.soname = optarg;
+ 	  break;
+ 	case OPTION_SORT_COMMON:
+ 	  if (optarg == NULL
+@@ -1489,6 +1493,12 @@ parse_args (unsigned argc, char **argv)
+ 	}
+     }
+ 
++ if (command_line.soname && command_line.soname[0] == '\0')
++   {
++     einfo (_("%P: SONAME must not be empty string; ignored\n"));
++     command_line.soname = NULL;
++   }
++
+   if (ingroup)
+     lang_leave_group ();
+ 

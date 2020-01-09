@@ -1,0 +1,24 @@
+diff -Nrup a/bfd/elf32-s390.c b/bfd/elf32-s390.c
+--- a/bfd/elf32-s390.c	2014-04-23 19:16:27.540713248 -0400
++++ b/bfd/elf32-s390.c	2014-04-23 22:58:04.611778349 -0400
+@@ -2872,7 +2872,7 @@ elf_s390_relocate_section (output_bfd, i
+ 	  continue;
+ 
+ 	case R_390_TLS_LDO32:
+-	  if (info->shared)
++	  if (info->shared || (input_section->flags & SEC_DEBUGGING))
+ 	    relocation -= dtpoff_base (info);
+ 	  else
+ 	    /* When converting LDO to LE, we must negate.  */
+diff -Nrup a/bfd/elf64-s390.c b/bfd/elf64-s390.c
+--- a/bfd/elf64-s390.c	2014-04-23 19:16:27.680721361 -0400
++++ b/bfd/elf64-s390.c	2014-04-23 23:00:02.187715623 -0400
+@@ -2871,7 +2871,7 @@ elf_s390_relocate_section (bfd *output_b
+ 	  continue;
+ 
+ 	case R_390_TLS_LDO64:
+-	  if (info->shared)
++	  if (info->shared || (input_section->flags & SEC_DEBUGGING))
+ 	    relocation -= dtpoff_base (info);
+ 	  else
+ 	    /* When converting LDO to LE, we must negate.  */

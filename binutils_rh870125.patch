@@ -1,0 +1,34 @@
+2012-10-29  Marek Polacek  <polacek@redhat.com>
+
+	* doc/as.texinfo: Option -version is identical with --version,
+	not -v.
+
+--- binutils/gas/doc/as.texinfo.mp	2012-10-29 11:44:05.042012090 +0100
++++ binutils/gas/doc/as.texinfo	2012-10-29 11:45:51.935259432 +0100
+@@ -707,10 +707,10 @@ assembly.
+ Remove local absolute symbols from the outgoing symbol table.
+ 
+ @item -v
+-@itemx -version
+ Print the @command{as} version.
+ 
+-@item --version
++@item -version
++@itemx --version
+ Print the @command{as} version and exit.
+ 
+ @item -W
+@@ -2306,12 +2306,10 @@ For example, it disables the exception f
+ @section Announce Version: @option{-v}
+ 
+ @kindex -v
+-@kindex -version
+ @cindex assembler version
+ @cindex version of assembler
+ You can find out what version of as is running by including the
+-option @samp{-v} (which you can also spell as @samp{-version}) on the
+-command line.
++option @samp{-v}.
+ 
+ @node W
+ @section Control Warnings: @option{-W}, @option{--warn}, @option{--no-warn}, @option{--fatal-warnings}

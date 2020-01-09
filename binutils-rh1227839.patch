@@ -1,0 +1,120 @@
+diff -rup binutils-2.20.51.0.2.orig/bfd/elf.c binutils-2.20.51.0.2/bfd/elf.c
+--- binutils-2.20.51.0.2.orig/bfd/elf.c	2015-12-08 10:18:57.639067188 +0000
++++ binutils-2.20.51.0.2/bfd/elf.c	2015-12-08 10:49:08.676092190 +0000
+@@ -4098,14 +4098,10 @@ _bfd_elf_map_sections_to_segments (bfd *
+ 			== (SEC_LOAD | SEC_HAS_CONTENTS))
+ 		      break;
+ 
+-		  if (i == (unsigned) -1)
+-		    continue;
+-
+-		  if (m->sections[i]->vma + m->sections[i]->size
+-		      >= info->relro_end)
++		  if (i != (unsigned) -1)
+ 		    break;
+ 		}
+-	      }
++	    }
+ 
+ 	  /* Make a PT_GNU_RELRO segment only when it isn't empty.  */
+ 	  if (m != NULL)
+@@ -4819,7 +4815,6 @@ assign_file_positions_for_non_load_secti
+ 		{
+ 		  if (lp->p_type == PT_LOAD
+ 		      && lp->p_vaddr < link_info->relro_end
+-		      && lp->p_vaddr + lp->p_filesz >= link_info->relro_end
+ 		      && lm->count != 0
+ 		      && lm->sections[0]->vma >= link_info->relro_start)
+ 
+diff -rup binutils-2.20.51.0.2.orig/ld/ldlang.c binutils-2.20.51.0.2/ld/ldlang.c
+--- binutils-2.20.51.0.2.orig/ld/ldlang.c	2015-12-08 10:18:57.364065482 +0000
++++ binutils-2.20.51.0.2/ld/ldlang.c	2015-12-08 10:51:27.733869588 +0000
+@@ -5233,18 +5233,14 @@ lang_size_sections (bfd_boolean *relax,
+       && link_info.relro && expld.dataseg.relro_end)
+     {
+       /* If DATA_SEGMENT_ALIGN DATA_SEGMENT_RELRO_END pair was seen, try
+-	 to put expld.dataseg.relro on a (common) page boundary.  */
+-      bfd_vma min_base, old_base, relro_end, maxpage;
++	 to put expld.dataseg.relro_end on a (common) page boundary.  */
++      bfd_vma min_base, relro_end, maxpage;
+ 
+       expld.dataseg.phase = exp_dataseg_relro_adjust;
+       maxpage = expld.dataseg.maxpagesize;
+       /* MIN_BASE is the absolute minimum address we are allowed to start the
+ 	 read-write segment (byte before will be mapped read-only).  */
+       min_base = (expld.dataseg.min_base + maxpage - 1) & ~(maxpage - 1);
+-      /* OLD_BASE is the address for a feasible minimum address which will
+-	 still not cause a data overlap inside MAXPAGE causing file offset skip
+-	 by MAXPAGE.  */
+-      old_base = expld.dataseg.base;
+       expld.dataseg.base += (-expld.dataseg.relro_end
+ 			     & (expld.dataseg.pagesize - 1));
+       /* Compute the expected PT_GNU_RELRO segment end.  */
+@@ -5260,9 +5256,9 @@ lang_size_sections (bfd_boolean *relax,
+       if (expld.dataseg.relro_end > relro_end)
+ 	{
+ 	  /* The alignment of sections between DATA_SEGMENT_ALIGN
+-	     and DATA_SEGMENT_RELRO_END caused huge padding to be
+-	     inserted at DATA_SEGMENT_RELRO_END.  Try to start a bit lower so
+-	     that the section alignments will fit in.  */
++	     and DATA_SEGMENT_RELRO_END can cause excessive padding to
++	     be inserted at DATA_SEGMENT_RELRO_END.  Try to start a
++	     bit lower so that the section alignments will fit in.  */
+ 	  asection *sec;
+ 	  unsigned int max_alignment_power = 0;
+ 
+@@ -5276,9 +5272,11 @@ lang_size_sections (bfd_boolean *relax,
+ 
+ 	  if (((bfd_vma) 1 << max_alignment_power) < expld.dataseg.pagesize)
+ 	    {
+-	      if (expld.dataseg.base - (1 << max_alignment_power) < old_base)
+-		expld.dataseg.base += expld.dataseg.pagesize;
+-	      expld.dataseg.base -= (1 << max_alignment_power);
++	      /* Aligning the adjusted base guarantees the padding
++		 between sections won't change.  This is better than
++		 simply subtracting 1 << max_alignment_power which is
++		 what we used to do here.  */
++	      expld.dataseg.base &= ~((1 << max_alignment_power) - 1);
+ 	      lang_reset_memory_regions ();
+ 	      one_lang_size_sections_pass (relax, check_regions);
+ 	    }
+diff -rup binutils-2.20.51.0.2.orig/ld/ld.texinfo binutils-2.20.51.0.2/ld/ld.texinfo
+--- binutils-2.20.51.0.2.orig/ld/ld.texinfo	2015-12-08 10:18:57.224064613 +0000
++++ binutils-2.20.51.0.2/ld/ld.texinfo	2015-12-08 10:52:39.896273009 +0000
+@@ -5598,13 +5598,15 @@ evaluation purposes.
+ @item DATA_SEGMENT_RELRO_END(@var{offset}, @var{exp})
+ @kindex DATA_SEGMENT_RELRO_END(@var{offset}, @var{exp})
+ This defines the end of the @code{PT_GNU_RELRO} segment when
+-@samp{-z relro} option is used.  Second argument is returned.
++@samp{-z relro} option is used.
+ When @samp{-z relro} option is not present, @code{DATA_SEGMENT_RELRO_END}
+ does nothing, otherwise @code{DATA_SEGMENT_ALIGN} is padded so that
+ @var{exp} + @var{offset} is aligned to the most commonly used page
+ boundary for particular target.  If present in the linker script,
+ it must always come in between @code{DATA_SEGMENT_ALIGN} and
+-@code{DATA_SEGMENT_END}.
++@code{DATA_SEGMENT_END}.  Evaluates to the second argument plus any
++padding needed at the end of the @code{PT_GNU_RELRO} segment due to
++section alignment.
+ 
+ @smallexample
+   . = DATA_SEGMENT_RELRO_END(24, .);
+--- /dev/null	2015-12-08 07:55:40.208966133 +0000
++++ binutils-2.20.51.0.2/ld/testsuite/ld-elf/pr16322.s	2015-12-08 10:53:40.727613085 +0000
+@@ -0,0 +1,6 @@
++	.globl	p1
++	.section	.data.rel.ro,"aw",%progbits
++	.p2align 5
++	.type	p1, %object
++p1:
++	.dc.a	f1
+--- /dev/null	2015-12-08 07:55:40.208966133 +0000
++++ binutils-2.20.51.0.2/ld/testsuite/ld-elf/pr16322.d	2015-12-08 10:53:12.405454751 +0000
+@@ -0,0 +1,7 @@
++#ld: -shared -z relro
++#readelf: -l --wide
++#target: *-*-linux-gnu *-*-gnu* *-*-nacl*
++
++#...
++  GNU_RELRO .*
++#pass
