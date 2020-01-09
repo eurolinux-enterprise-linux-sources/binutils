@@ -1,0 +1,67 @@
+diff --git a/ld/emultempl/elf32.em b/ld/emultempl/elf32.em
+index 9ac1840316..748f56b844 100644
+--- a/ld/emultempl/elf32.em
++++ b/ld/emultempl/elf32.em
+@@ -2676,6 +2676,10 @@ fragment <<EOF
+ 	  link_info.noexecstack = TRUE;
+ 	  link_info.execstack = FALSE;
+ 	}
++      else if (strcmp (optarg, "globalaudit") == 0)
++	{
++	  link_info.flags_1 |= DF_1_GLOBAUDIT;
++	}
+ EOF
+ 
+ if test x"$GENERATE_SHLIB_SCRIPT" = xyes; then
+diff --git a/ld/ld.texinfo b/ld/ld.texinfo
+index ebe7e7b7bd..bbfa9fd4f4 100644
+--- a/ld/ld.texinfo
++++ b/ld/ld.texinfo
+@@ -1136,6 +1136,14 @@ This option is only meaningful when building a shared object.  It makes
+ the symbols defined by this shared object available for symbol resolution
+ of subsequently loaded libraries.
+ 
++@item globalaudit
++This option is only meaningful when building a dynamic executable.
++This option marks the executable as requiring global auditing by
++setting the @code{DF_1_GLOBAUDIT} bit in the @code{DT_FLAGS_1} dynamic
++tag.  Global auditing requires that any auditing library defined via
++the @option{--depaudit} or @option{-P} command line options be run for
++all dynamic objects loaded by the application. 
++
+ @item initfirst
+ This option is only meaningful when building a shared object.
+ It marks the object so that its runtime initialization will occur
+diff --git a/ld/lexsup.c b/ld/lexsup.c
+index effa277b16..1adb302a14 100644
+--- a/ld/lexsup.c
++++ b/ld/lexsup.c
+@@ -1828,6 +1828,8 @@ elf_static_list_options (FILE *file)
+   -z execstack                Mark executable as requiring executable stack\n"));
+   fprintf (file, _("\
+   -z noexecstack              Mark executable as not requiring executable stack\n"));
++  fprintf (file, _("\
++  -z globalaudit              Mark executable requiring global auditing\n"));
+ }
+ 
+ static void
+diff --git a/ld/testsuite/ld-elf/audit.exp b/ld/testsuite/ld-elf/audit.exp
+index 83ee35582e..b7af4b72cf 100644
+--- a/ld/testsuite/ld-elf/audit.exp
++++ b/ld/testsuite/ld-elf/audit.exp
+@@ -60,6 +60,9 @@ set build_tests {
+   {"Run with -lusesaudit -lusesaudit2"
+      "-Ltmpdir/ -lusesaudit -lusesaudit2" ""
+      {main.c} {{"readelf" {-d} "depaudit2.rd"}} "useslibusesaudit2.out"}
++  {"Link with -z globalaudit"
++     "-Wl,-Paudit.so -Wl,-z,globalaudit" ""
++     {main.c} {{"readelf" {-d} "globalaudit.rd"}} "globalaudit.out"}	
+ }
+ 
+ run_cc_link_tests $build_tests
+--- /dev/null	2017-08-11 08:05:42.291658471 +0100
++++ ld/testsuite/ld-elf/globalaudit.rd	2017-08-11 15:32:41.009073026 +0100
+@@ -0,0 +1,3 @@
++#...
++.*\(FLAGS_1\).*Flags: GLOBAUDIT
++#pass

@@ -54,7 +54,7 @@ Version: 2.27
 # Note: The Release string *must* be different from that used by any of the
 # devtoolset binutils associated with this release.  That is why ".base"
 # has been appended here.  See BZ 1337617 for more details.
-Release: 28.base%{?dist}.1
+Release: 34.base%{?dist}
 License: GPLv3+
 Group: Development/Tools
 URL: http://sources.redhat.com/binutils
@@ -283,9 +283,65 @@ Patch40: binutils-2.27-power9.3.patch
 # Lifetime: Fixed in 2.30.
 Patch41: binutils-2.27-ppc64-discarded-plt-sections.patch
 
+# Purpose:  Fix a seg-fault in the x86_64 linker when attempting to convert
+#           relocations against the absolute section.
+# Lifetime: Fixed in 2.30.
+Patch42: binutils-x86_64-do-not-convert-abs-relocs.patch
+
+# Purpose:  Add support for a "-z globalaudit" linker command line option.
+# Lifetime: Fixed in 2.30.
+Patch43: binutils-2.27-add-globalaudit-support.patch
+
+# Purpose:  Stop strip from replacing unknown relocs with null relocs.  Make
+#           it return an error status and not strip the file instead.
+# Lifetime: Fixed in 2.31.
+Patch44: binutils-strip-unknown-relocs.patch
+
 # Purpose:  Allow "lea foo@GOT, %reg" in PIC mode on the x86.
 # Lifetime: Fixed in 2.28
-Patch42: binutils-x86-lea-addressing.patch
+Patch45: binutils-x86-lea-addressing.patch
+
+# Purpose:  Fix seg-fault parsing corrupt DWARF1 debug information.
+# Lifetime: Fixed in 2.31
+Patch46: binutils-CVE-2018-7568.patch
+
+# Purpose:  Fix seg-fault parsing corrupt DWARF debug information.
+# Lifetime: Fixed in 2.31
+Patch47: binutils-CVE-2018-7569.patch
+
+# Purpose:  Fix seg-fault parsing corrupt COFF files.
+# Lifetime: Fixed in 2.31
+Patch48: binutils-CVE-2018-7208.patch
+
+# Purpose:  Fix seg-fault parsing corrupt ELF files.
+# Lifetime: Fixed in 2.31
+Patch49: binutils-CVE-2018-10535.patch
+
+# Purpose:  Fix seg-fault parsing corrupt DWARF debug information.
+# Lifetime: Fixed in 2.31
+Patch50: binutils-CVE-2018-10373.patch
+
+# Purpose:  Fix seg-fault parsing corrupt DWARF debug information.
+# Lifetime: Fixed in 2.31
+Patch51: binutils-CVE-2018-10372.patch
+
+# Purpose:  Fix seg-fault parsing a corrupt PE format file.
+# Lifetime: Fixed in 2.31
+Patch52: binutils-CVE-2018-10534.patch
+
+# Purpose:  Fix seg-fault parsing a corrupt AOUT format file.
+# Lifetime: Fixed in 2.31
+Patch53: binutils-CVE-2018-7642.patch
+
+# Purpose:  Fix seg-fault parsing corrupt DWARF debug information.
+# Lifetime: Fixed in 2.31
+Patch54: binutils-CVE-2018-7643.patch
+
+# Purpose:  Fix seg-fault parsing corrupt ELF files.
+# Lifetime: Fixed in 2.31
+Patch55: binutils-CVE-2018-8945.patch
+
+
 
 # Purpose:  A *temporary* patch to disable the generation of
 #           R_X86_64_GOTPCRELX and R_X86_64_REX_GETPCRELX relocations by the
@@ -467,6 +523,19 @@ using libelf instead of BFD.
 %patch40 -p1
 %patch41 -p1
 %patch42 -p1
+%patch43 -p1
+%patch44 -p1
+%patch45 -p1
+%patch46 -p1
+%patch47 -p1
+%patch48 -p1
+%patch49 -p1
+%patch50 -p1
+%patch51 -p1
+%patch52 -p1
+%patch53 -p1
+%patch54 -p1
+%patch55 -p1
 
 # TEMPORARY patches.
 %patch998 -p1
@@ -873,15 +942,37 @@ exit 0
 
 #---------------------------------------------------------------------------------
 %changelog
-* Tue May 29 2018 Nick Clifton <nickc@redhat.com> 2.27-28.base.1
-- Fix the N-V-R for z-stream release.
+* Wed May 30 2018 Nick Clifton  <nickc@redhat.com> 2.27-34.base
+- Fix seg-fault parsing corrupt AOUT format files.  (#1579799)
+- Fix seg-fault parsing corrupt DWARF2 debug information.  (#1579802)
+- Fix seg-fault parsing corrupt ELF format files.  (#1579801)
 
-* Fri May 25 2018 Marek Polacek <polacek@redhat.com> 2.27-28.base.0.0.hotfix.1.bz1582602
-- Hotfix build.
+* Thu May 17 2018 Nick Clifton  <nickc@redhat.com> 2.27-33.base
+- Fix seg-fault parsing ELF files.  (#1578979)
+- Fix seg-fault parsing DWARF-2 information.  (#1579065)
+- Fix seg-fault parsing DWARF-2 information.  (#1579051)
+- Fix seg-fault parsing a PE format file.  (#1579019)
 
-* Fri May 25 2018 Marek Polacek <polacek@redhat.com> 2.27-28.base
-- Allow "lea foo@GOT, %reg" in PIC mode on the x86.
-  (#1582602)
+* Wed May 16 2018 Nick Clifton  <nickc@redhat.com> 2.27-32.base
+- Fix seg-fault parsing DWARF-1 information.  (#1569580)
+- Fix seg-fault parsing DWARF-2 information.  (#1569891)
+- Fix seg-fault parsing COFF files.  (#1571917)
+
+* Wed May 02 2018 Nick Clifton  <nickc@redhat.com> 2.27-31.base
+- Allow "lea foo@GOT, %reg" in PIC mode on the x86.  (#1573872)
+
+* Fri Apr 20 2018 Nick Clifton  <nickc@redhat.com> 2.27-30.base
+- Version bump in order to allow a rebuild, in order to work around a transient problem with the compose database.
+
+* Wed Apr 11 2018 Nick Clifton  <nickc@redhat.com> 2.27-29.base
+- Add support for the GLOBALAUDIT dynamic linker tag.
+  (#1439351)
+
+* Wed Apr 11 2018 Nick Clifton  <nickc@redhat.com> 2.27-28.base
+- Stop the x86_64 linker from crashing when asked to convert a reloc against the ABS section.
+  (#1557346)
+- Stop strip from replacing unknown relocs with null relocs.
+  (#1545386)
 
 * Thu Jan 11 2018 Nick Clifton  <nickc@redhat.com> 2.27-27.base
 - Do enable relro by default for the PowerPC64 architecture.

@@ -1,0 +1,12 @@
+--- binutils.orig/bfd/elf64-x86-64.c	2018-03-19 11:50:18.770407381 +0000
++++ binutils-2.27/bfd/elf64-x86-64.c	2018-03-19 12:01:12.177534677 +0000
+@@ -1931,6 +1931,9 @@ elf_x86_64_convert_load_reloc (bfd *abfd
+     {
+       bfd_signed_vma distance;
+ 
++      if (tsec->output_section == NULL)
++	return TRUE;
++
+       /* At this point, we don't know the load addresses of TSEC
+ 	 section nor SEC section.  We estimate the distrance between
+ 	 SEC and TSEC.  We store the estimated distances in the
