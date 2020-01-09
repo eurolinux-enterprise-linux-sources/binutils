@@ -54,7 +54,7 @@ Version: 2.27
 # Note: The Release string *must* be different from that used by any of the
 # devtoolset binutils associated with this release.  That is why ".base"
 # has been appended here.  See BZ 1337617 for more details.
-Release: 41.base%{?dist}
+Release: 41.base%{?dist}.1
 License: GPLv3+
 Group: Development/Tools
 URL: http://sources.redhat.com/binutils
@@ -363,6 +363,12 @@ Patch59: binutils-x86_64-disable-PLT-elision.patch
 # Lifetime: Fixed in 2.32
 Patch60: binutils-CVE-2018-1000876.patch
 
+# Purpose:  Stop the BFD library from complaining about files with multiple
+#           relocations against the same section.  Allows examination of
+#           special kernel modules.
+# Lifetime: Fixed in 2.33
+Patch61: binutils-multiple-relocs-for-same-section.patch
+
 
 # Purpose:  A *temporary* patch to disable the generation of
 #           R_X86_64_GOTPCRELX and R_X86_64_REX_GETPCRELX relocations by the
@@ -562,6 +568,7 @@ using libelf instead of BFD.
 %patch58 -p1
 %patch59 -p1
 %patch60 -p1
+%patch61 -p1
 
 # TEMPORARY patches.
 %patch998 -p1
@@ -973,6 +980,9 @@ exit 0
 
 #---------------------------------------------------------------------------------
 %changelog
+* Thu Sep 26 2019 Nick Clifton  <nickc@redhat.com> 2.27-41.base.1
+- Stop the BFD library from complaining about multiple reloc sections for the same code section.  (#1755779)
+
 * Mon Apr 15 2019 Nick Clifton  <nickc@redhat.com> 2.27-41.base
 - Fix up some linker tests that fail because of the R_x86_64_GOTPCRELX patch.  (#1699745)
 
