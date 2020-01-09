@@ -1,0 +1,132 @@
+diff -rup binutils.orig/bfd/elf32-i386.c binutils-2.20.51.0.2/bfd/elf32-i386.c
+--- binutils.orig/bfd/elf32-i386.c	2018-11-28 16:12:33.748957081 +0000
++++ binutils-2.20.51.0.2/bfd/elf32-i386.c	2018-11-28 16:23:23.922126503 +0000
+@@ -370,7 +370,7 @@ elf_i386_rtype_to_howto (bfd *abfd, unsi
+     {
+       (*_bfd_error_handler) (_("%B: invalid relocation type %d"),
+ 			     abfd, (int) r_type);
+-      indx = R_386_NONE;
++      return NULL;
+     }
+   BFD_ASSERT (elf_howto_table [indx].type == r_type);
+   return &elf_howto_table[indx];
+@@ -1273,8 +1273,10 @@ elf_i386_tls_transition (struct bfd_link
+       (*_bfd_error_handler)
+ 	(_("%B: TLS transition from %s to %s against `%s' at 0x%lx "
+ 	   "in section `%A' failed"),
+-	 abfd, sec, from->name, to->name, name,
+-	 (unsigned long) rel->r_offset);
++	 abfd, sec,
++	 from ? from->name : "unknown",
++	 to ? to->name : "unknown",
++	 name, (unsigned long) rel->r_offset);
+       bfd_set_error (bfd_error_bad_value);
+       return FALSE;
+     }
+diff -rup binutils.orig/bfd/elf64-ppc.c binutils-2.20.51.0.2/bfd/elf64-ppc.c
+--- binutils.orig/bfd/elf64-ppc.c	2018-11-28 16:12:33.746957096 +0000
++++ binutils-2.20.51.0.2/bfd/elf64-ppc.c	2018-11-28 16:22:06.931698628 +0000
+@@ -2304,9 +2304,10 @@ ppc64_elf_info_to_howto (bfd *abfd ATTRI
+     {
+       (*_bfd_error_handler) (_("%B: invalid relocation type %d"),
+ 			     abfd, (int) type);
+-      type = R_PPC64_NONE;
++      cache_ptr->howto = NULL;
+     }
+-  cache_ptr->howto = ppc64_elf_howto_table[type];
++  else
++    cache_ptr->howto = ppc64_elf_howto_table[type];
+ }
+ 
+ /* Handle the R_PPC64_ADDR16_HA and similar relocs.  */
+diff -rup binutils.orig/bfd/elf64-s390.c binutils-2.20.51.0.2/bfd/elf64-s390.c
+--- binutils.orig/bfd/elf64-s390.c	2018-11-28 16:12:33.766956948 +0000
++++ binutils-2.20.51.0.2/bfd/elf64-s390.c	2018-11-28 16:21:27.602990886 +0000
+@@ -402,9 +402,10 @@ elf_s390_info_to_howto (abfd, cache_ptr,
+ 	{
+ 	  (*_bfd_error_handler) (_("%B: invalid relocation type %d"),
+ 				 abfd, (int) r_type);
+-	  r_type = R_390_NONE;
++	  cache_ptr->howto = NULL;
+ 	}
+-      cache_ptr->howto = &elf_howto_table[r_type];
++      else
++	cache_ptr->howto = &elf_howto_table[r_type];
+     }
+ }
+ 
+diff -rup binutils.orig/bfd/elf64-x86-64.c binutils-2.20.51.0.2/bfd/elf64-x86-64.c
+--- binutils.orig/bfd/elf64-x86-64.c	2018-11-28 16:12:33.756957022 +0000
++++ binutils-2.20.51.0.2/bfd/elf64-x86-64.c	2018-11-28 16:20:38.035359231 +0000
+@@ -233,7 +233,7 @@ elf64_x86_64_rtype_to_howto (bfd *abfd,
+ 	{
+ 	  (*_bfd_error_handler) (_("%B: invalid relocation type %d"),
+ 				 abfd, (int) r_type);
+-	  r_type = R_X86_64_NONE;
++	  return NULL;
+ 	}
+       i = r_type;
+     }
+@@ -287,7 +287,6 @@ elf64_x86_64_info_to_howto (bfd *abfd AT
+ 
+   r_type = ELF64_R_TYPE (dst->r_info);
+   cache_ptr->howto = elf64_x86_64_rtype_to_howto (abfd, r_type);
+-  BFD_ASSERT (r_type == cache_ptr->howto->type);
+ }
+ 
+ /* Support for core dump NOTE sections.  */
+@@ -1057,8 +1056,10 @@ elf64_x86_64_tls_transition (struct bfd_
+       (*_bfd_error_handler)
+ 	(_("%B: TLS transition from %s to %s against `%s' at 0x%lx "
+ 	   "in section `%A' failed"),
+-	 abfd, sec, from->name, to->name, name,
+-	 (unsigned long) rel->r_offset);
++	 abfd, sec,
++	 from ? from->name : "unknown",
++	 to   ? to->name   : "unknown",
++	 name, (unsigned long) rel->r_offset);
+       bfd_set_error (bfd_error_bad_value);
+       return FALSE;
+     }
+diff -rup binutils.orig/bfd/elfcode.h binutils-2.20.51.0.2/bfd/elfcode.h
+--- binutils.orig/bfd/elfcode.h	2018-11-28 16:12:33.746957096 +0000
++++ binutils-2.20.51.0.2/bfd/elfcode.h	2018-11-28 16:18:06.276486976 +0000
+@@ -1544,6 +1544,12 @@ elf_slurp_reloc_table_from_section (bfd
+ 	(*ebd->elf_info_to_howto) (abfd, relent, &rela);
+       else
+ 	(*ebd->elf_info_to_howto_rel) (abfd, relent, &rela);
++
++      if (relent->howto == NULL)
++	{
++	  bfd_set_error (bfd_error_bad_value);
++	  goto error_return;
++	}
+     }
+ 
+   if (allocated != NULL)
+diff -rup binutils.orig/binutils/objcopy.c binutils-2.20.51.0.2/binutils/objcopy.c
+--- binutils.orig/binutils/objcopy.c	2018-11-28 16:12:33.481959064 +0000
++++ binutils-2.20.51.0.2/binutils/objcopy.c	2018-11-28 16:16:18.677286564 +0000
+@@ -1823,10 +1823,19 @@ copy_object (bfd *ibfd, bfd *obfd, const
+ 	 haven't been set yet.  mark_symbols_used_in_relocations will
+ 	 ignore input sections which have no corresponding output
+ 	 section.  */
++      bfd_set_error (bfd_error_no_error);
+       if (strip_symbols != STRIP_ALL)
+-	bfd_map_over_sections (ibfd,
+-			       mark_symbols_used_in_relocations,
+-			       isympp);
++	{
++	  bfd_map_over_sections (ibfd,
++				 mark_symbols_used_in_relocations,
++				 isympp);
++	  if (bfd_get_error () != bfd_error_no_error)
++	    {
++	      status = 1;
++	      return FALSE;
++	    }
++	}
++
+       osympp = (asymbol **) xmalloc ((symcount + 1) * sizeof (asymbol *));
+       symcount = filter_symbols (ibfd, obfd, osympp, isympp, symcount);
+     }

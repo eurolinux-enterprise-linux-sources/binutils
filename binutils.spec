@@ -17,7 +17,7 @@
 Summary: A GNU collection of binary utilities
 Name: %{?cross}binutils%{?_with_debug:-debug}
 Version: 2.20.51.0.2
-Release: 5.48%{?dist}
+Release: 5.48%{?dist}.1
 License: GPLv3+
 Group: Development/Tools
 URL: http://sources.redhat.com/binutils
@@ -87,6 +87,9 @@ Patch61: binutils-rh1311494.patch
 Patch62: binutils-rh1409817.patch
 Patch63: binutils-rh1427285.patch
 Patch64: binutils-2.20.51.0.2-fix-objcopy-of-NOBITS-sections.patch
+# Purpose:  Stop strip from corrupting unknown relocs
+# Lifetime: Fixed in 2.28
+Patch65: binutils-strip-unknown-relocs.patch
 
 %if 0%{?_with_debug:1}
 # Define this if you want to skip the strip step and preserve debug info.
@@ -215,6 +218,7 @@ to consider using libelf instead of BFD.
 %patch62 -p1
 %patch63 -p1
 %patch64 -p1
+%patch65 -p1
 
 # We cannot run autotools as there is an exact requirement of autoconf-2.59.
 
@@ -484,6 +488,10 @@ exit 0
 %endif # %{isnative}
 
 %changelog
+* Wed Jan 02 2019 Nick Clifton <nickc@redhat.com> 2.20.51.0.2-5.48.1
+- Backport patch to stop strip from corrupting unrecognised relocs.
+  (#1653798)
+
 * Mon Jul 31 2017 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.48
 - Fix placement of NOBITS sections when using objcopy.
   (#1476412)
