@@ -1,0 +1,75 @@
+--- ../binutils-2.20.51.0.2.orig/bfd/opncls.c	2016-07-05 09:29:44.955859812 +0100
++++ bfd/opncls.c	2016-07-05 09:31:51.691643710 +0100
+@@ -1287,6 +1287,8 @@ find_separate_debug_file (bfd *abfd, con
+       bfd_malloc (strlen (debug_file_directory) + 1
+                   + (canon_dirlen > dirlen ? canon_dirlen : dirlen)
+                   + strlen (".debug/")
++#define FEDORA_LIB_DEBUG_DIR "/usr/lib/debug/"
++		  + strlen (FEDORA_LIB_DEBUG_DIR) + strlen ("usr/")
+                   + strlen (basename)
+                   + 1);
+   if (debugfile == NULL)
+@@ -1322,6 +1324,26 @@ find_separate_debug_file (bfd *abfd, con
+       return debugfile;
+     }
+ 
++  /* Then try in the global debug dir for Fedora libraries.  */
++  sprintf (debugfile, "%s%s%s", FEDORA_LIB_DEBUG_DIR, dir, basename);
++  if (separate_debug_file_exists (debugfile, crc32))
++    {
++      free (basename);
++      free (dir);
++      free (canon_dir);
++      return debugfile;
++    }
++
++  /* Then try in the usr subdirectory of the global debug dir for Fedora libraries.  */
++  sprintf (debugfile, "%s/usr%s%s", FEDORA_LIB_DEBUG_DIR, dir, basename);
++  if (separate_debug_file_exists (debugfile, crc32))
++    {
++      free (basename);
++      free (dir);
++      free (canon_dir);
++      return debugfile;
++    }
++  
+   /* Then try in the global debugfile directory.  */
+   strcpy (debugfile, debug_file_directory);
+   dirlen = strlen (debug_file_directory) - 1;
+--- ../binutils-2.20.51.0.2.orig/bfd/dwarf2.c	2016-07-05 09:29:44.955859812 +0100
++++ bfd/dwarf2.c	2016-07-05 09:34:14.910529561 +0100
+@@ -1753,6 +1753,34 @@ find_abstract_instance_name (struct comp
+ 	abort ();
+ 
+       info_ptr = unit->stash->sec_info_ptr + die_ref;
++
++      /* Now find the CU containing this pointer.  */
++      if (info_ptr >= unit->info_ptr_unit && info_ptr < unit->end_ptr)
++	;
++      else
++	{
++	  /* Check other CUs to see if they contain the abbrev.  */
++	  struct comp_unit * u;
++
++	  for (u = unit->prev_unit; u != NULL; u = u->prev_unit)
++	    if (info_ptr >= u->info_ptr_unit && info_ptr < u->end_ptr)
++	      break;
++
++	  if (u == NULL)
++	    for (u = unit->next_unit; u != NULL; u = u->next_unit)
++	      if (info_ptr >= u->info_ptr_unit && info_ptr < u->end_ptr)
++		break;
++
++	  if (u)
++	    unit = u;
++	  else
++	    {
++	      (*_bfd_error_handler)
++		(_("Dwarf Error: Unable to read ref addr %u."), die_ref);
++	      bfd_set_error (bfd_error_bad_value);
++	      return name;
++	    }
++	}
+     }
+   else 
+     info_ptr = unit->info_ptr_unit + die_ref;

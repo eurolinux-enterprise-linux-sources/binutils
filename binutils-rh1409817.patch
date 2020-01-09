@@ -1,0 +1,60 @@
+diff -rup binutils.orig/bfd/doc/bfd.texinfo binutils-2.20.51.0.2/bfd/doc/bfd.texinfo
+--- binutils.orig/bfd/doc/bfd.texinfo	2017-01-05 10:44:56.211163546 +0000
++++ binutils-2.20.51.0.2/bfd/doc/bfd.texinfo	2017-01-05 10:49:50.693147815 +0000
+@@ -323,7 +323,7 @@ All of BFD lives in one directory.
+ @printindex cp
+ 
+ @tex
+-% I think something like @colophon should be in texinfo.  In the
++% I think something like @@colophon should be in texinfo.  In the
+ % meantime:
+ \long\def\colophon{\hbox to0pt{}\vfill
+ \centerline{The body of this manual is set in}
+@@ -334,7 +334,7 @@ All of BFD lives in one directory.
+ \centerline{{\sl\fontname\tensl\/}}
+ \centerline{are used for emphasis.}\vfill}
+ \page\colophon
+-% Blame: doc@cygnus.com, 28mar91.
++% Blame: doc@@cygnus.com, 28mar91.
+ @end tex
+ 
+ @bye
+diff -rup binutils.orig/binutils/readelf.c binutils-2.20.51.0.2/binutils/readelf.c
+--- binutils.orig/binutils/readelf.c	2017-01-05 10:44:52.010220874 +0000
++++ binutils-2.20.51.0.2/binutils/readelf.c	2017-01-05 10:54:45.506129313 +0000
+@@ -4553,7 +4553,7 @@ process_section_headers (FILE * file)
+ 	  else
+ 	    printf (" %3s ", get_elf_section_flags (section->sh_flags));
+ 
+-	  if (hole_in_shndx)
++	  if (hole_in_shndx && original_shndx)
+ 	    {
+ 	      if (original_shndx[i].sh_link != section->sh_link)
+ 		printf ("%2u/-%3u ",
+@@ -4591,7 +4591,7 @@ process_section_headers (FILE * file)
+ 	      printf ("  ");
+ 	      print_vma (section->sh_offset, LONG_HEX);
+ 	    }
+-	  if (hole_in_shndx)
++	  if (hole_in_shndx && original_shndx)
+ 	    {
+ 	      if (original_shndx[i].sh_link != section->sh_link)
+ 		printf ("  %u/-%3u\n       ",
+@@ -4606,7 +4606,7 @@ process_section_headers (FILE * file)
+ 	  putchar (' ');
+ 	  print_vma (section->sh_entsize, LONG_HEX);
+ 
+-	  if (hole_in_shndx)
++	  if (hole_in_shndx && original_shndx)
+ 	    {
+ 	      if (original_shndx[i].sh_info != section->sh_info)
+ 		printf ("  %-11u/-%3u",
+@@ -4639,7 +4639,7 @@ process_section_headers (FILE * file)
+ 
+ 	  printf (" %3s ", get_elf_section_flags (section->sh_flags));
+ 
+-	  if (hole_in_shndx)
++	  if (hole_in_shndx && original_shndx)
+ 	    {
+ 	      if (original_shndx[i].sh_link != section->sh_link)
+ 		printf ("  %2u/-%3u",

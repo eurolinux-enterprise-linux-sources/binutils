@@ -17,7 +17,7 @@
 Summary: A GNU collection of binary utilities
 Name: %{?cross}binutils%{?_with_debug:-debug}
 Version: 2.20.51.0.2
-Release: 5.44%{?dist}
+Release: 5.46%{?dist}
 License: GPLv3+
 Group: Development/Tools
 URL: http://sources.redhat.com/binutils
@@ -83,6 +83,8 @@ Patch57: binutils-rh959422.patch
 Patch58: binutils-rh1128279.patch
 Patch59: binutils-rh1175590.patch
 Patch60: binutils-rh1227839.patch
+Patch61: binutils-rh1311494.patch
+Patch62: binutils-rh1409817.patch
 
 %if 0%{?_with_debug:1}
 # Define this if you want to skip the strip step and preserve debug info.
@@ -207,6 +209,8 @@ to consider using libelf instead of BFD.
 %patch58 -p1
 %patch59 -p1
 %patch60 -p1
+%patch61 -p0
+%patch62 -p1
 
 # We cannot run autotools as there is an exact requirement of autoconf-2.59.
 
@@ -476,7 +480,13 @@ exit 0
 %endif # %{isnative}
 
 %changelog
-* Tue Dec 07 2015 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.44
+* Thu Jan 05 2017 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.46
+- Fix seg-fault in readelf reading corrupt binary. (#1409817)
+
+* Tue Jul 05 2016 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.45
+- Fix locating and reading separate debug info files. (#1311494)
+
+* Tue Dec 08 2015 Nick Clifton <nickc@redhat.com> - 2.20.51.0.2-5.44
 - Backport upstream RELRO fixes. (#1227839)
 
 * Thu Dec 18 2014 Jeff Law <law@redhat.com> - 2.20.51.0.2-5.43
